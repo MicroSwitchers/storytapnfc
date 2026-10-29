@@ -1,0 +1,4 @@
+[build]
+  publish = "."
+
+# Static files only. No build command, functions, account database, or secrets.

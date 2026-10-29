@@ -1,0 +1,18 @@
+{
+  "id": "./",
+  "name": "StoryTouch — Audio Stories",
+  "short_name": "StoryTouch",
+  "description": "A familiar voice, one little tap away. Accessible audio stories with NFC and large play buttons.",
+  "lang": "en",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f8f7f2",
+  "theme_color": "#183f37",
+  "categories": ["education", "entertainment"],
+  "icons": [
+    { "src": "./assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./assets/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
