@@ -1,45 +1,49 @@
-# StoryTouch 1.0.0 — Verification
+# StoryTouch 1.1.0 — Verification
 
-Date: 29 October 2026. Browser: isolated headless Chromium 149.0.7827.55 on Windows.
+29 October 2026. Browser: isolated Chromium 149.0.7827.55.
 
-**Result: 20 automated verification groups passed**, with no uncaught JavaScript errors and no external application asset/audio requests. Tests ran against the static files with the included production Content Security Policy. The recording test used a fake browser microphone. All NFC checks used a software fixture; no physical NFC hardware was accessed.
+**20 browser verification groups passed**, plus the starter-folder catalog check. There were no uncaught JavaScript exceptions or remote application asset/audio requests in these flows. The browser suite served the app with its production Content Security Policy.
 
-## Verified in the browser
+NFC and speech output were simulated. Recording used the browser's real MediaRecorder with a fake test microphone; actual MP3/WAV audio was decoded and played. The user-facing preview also detected installed Windows speech voices, but audible device speech was not certified by the automated fixture.
 
-1. Tag parsing recognises code/text, same-app URL and serial keys; normalises code case; rejects unrelated URLs and malformed backups.
-2. Root `index.html` loads. Its manifest link resolves, the browser parses the manifest without errors, icon URLs return successfully, and the service worker completes its shell cache.
-3. All three included WAV sounds decode and advance playback. Pause, restart, speed changes and stop work.
-4. Imported audio is stored as a Blob in IndexedDB with its transcript, survives reload, and plays afterward.
-5. Empty and undecodable files are rejected without adding a story.
-6. The browser’s real MediaRecorder captures the fake test microphone, completes a recording, saves it, and plays it back.
-7. Editing details persists changes. User-entered angle brackets, ampersands, and quotes render as text. The edit dialog’s tag shortcut selects the right story.
-8. Manual code linking and child playback work; unknown codes show a useful message.
-9. A simulated linked NFC code read starts its story; cancelling scanning aborts the session.
-10. Simulated NFC permission denial resets the controls and offers fallback playback.
-11. Simulated serial-number linking resolves to its story; unknown tags show guidance; changing mode cancels scans.
-12. NFC URL write requests include explicit overwrite after the app confirmation. Pending writes can be cancelled and simulated successful writes show completion.
-13. Exported backups contain byte-identical imported audio plus tag links.
-14. A backup restores into a fresh browser context. Invalid tag references are rejected without partial database writes. A direct tag URL opens child mode and waits for Play, respecting autoplay restrictions.
-15. Offline reload restores the app and library. Both custom audio and test audio play offline. The guide opens offline. A cached WAV byte-range request returns HTTP 206 with the requested 100 bytes.
-16. Deleting a story also deletes its links while leaving other stories and links intact.
-17. Parent tabs respond to arrow/Home/End keys. Form controls have labels. Parent library, add, setup and child views have no horizontal page overflow at 320, 390, 768 and 1280 pixels.
-18. A nested deployment path resolves the relative manifest, service-worker scope and assets, and reloads offline. Local storage remains shared by same-origin app folders, as expected for IndexedDB.
-19. Unsupported NFC disables scan controls with guidance. Microphone denial leaves audio import available.
-20. The tested flows produce no uncaught JavaScript exceptions or remote asset/audio fetches.
+## Browser checks
 
-JavaScript syntax checks passed for all four application scripts and the service worker. The optional Python preview helper passed compilation. Desktop, phone-width and child-mode screenshots were visually inspected. This is a functional and structural accessibility check, not a formal WCAG certification or a screen-reader hardware test.
+1. New release loads, all examples are editable local audio, manifest and offline shell are valid.
+2. Written story drafts, voice and pace survive a browser reload.
+3. Basic TTS preview, saving, pause/resume/restart and exclusive playback work through a speech fixture.
+4. Parents can rename written stories, edit their words and retain changes after reload.
+5. Microphone recording stops its tracks, retains an audio draft after reload and saves playable audio.
+6. MP3 import previews, saves and plays actual MP3 bytes.
+7. A selected audio folder supplies persistent starter stories and repeated imports avoid duplicates.
+8. Starter stories can be renamed or removed without returning on the next load.
+9. Guided NFC linking advances through tap and test states and plays a written story.
+10. NFC cancellation, permission errors, serial linking and URL writes remain usable.
+11. Backup includes text, audio, renamed examples, links and removed-example preferences.
+12. Fresh-browser restore preserves written stories, audio and removed examples; malformed backups do not write.
+13. Direct tag URLs require Play, and child buttons and manual codes support written stories.
+14. Offline reload retains renamed/removed examples and custom audio; cached MP3/range and speech fixture playback work.
+15. The v1 database upgrades in place without losing recordings or old demo-tag links.
+16. Version 1 backups still restore.
+17. Keyboard navigation, labelled inputs and responsive layouts work at 320, 390, 768 and 1280 pixels.
+18. Subfolder manifest and offline example seeding work.
+19. Unsupported speech/NFC and denied microphones have fallbacks.
+20. No uncaught JavaScript exceptions or remote application asset/audio requests.
 
-## Package integrity
+## Folder and package checks
 
-The release archive is checked for a root-level `index.html`, valid manifest JSON, existing local HTML/script/style/icon/audio references, complete precached assets, correct PNG dimensions, readable PCM WAVs, and archive CRC integrity. `FILES.sha256` records every packaged file except itself. The archive is extracted and its file hashes are compared with the source before a final browser smoke test of the extracted package.
+The folder-helper check adds an MP3 in a new subfolder with a paired transcript, regenerates the catalog, and verifies the stable story ID, title, transcript and changed offline cache revision. Repeating the helper preserves the same ID. The final starter set includes a real welcome MP3 and the two synthesised WAV test sounds.
 
-## Checks to perform on the intended phone
+JavaScript syntax and Python compilation checks passed. Desktop and phone-width layouts were visually inspected. The responsive suite checks all parent panels and child mode at 320, 390, 768 and 1280 pixels with a populated library and player. This is structural/functional accessibility testing, not formal WCAG certification.
 
-1. Deploy the extracted folder to HTTPS. Open it in the browser/profile you intend to use. Play a test sound and wait for the offline-ready indicator.
-2. Make a short microphone recording using the real microphone, save it, reload, and play it. Confirm device volume and speaker/headphone output.
-3. On an NFC-enabled Android phone in Chrome, save a code link, write its URL to a spare writable NDEF tag, then scan it in child mode. Confirm that Cancel stops a pending scan/write. Check a real permission denial and recovery through browser site settings.
-4. Try an existing tag using Read a physical tag to link. Tag serial availability and NDEF compatibility vary. Generic RFID tags are outside the Web NFC API.
-5. Install through the browser where offered. Close/reopen the installed app, disconnect networking, and play both a test sound and your recording. Restore a backup on any second device/browser before expecting its tags to resolve there.
-6. Test with the listener’s screen reader, keyboard/switch setup, zoom and preferred device orientation. Add transcripts to real recordings. Verify a parent can reach Stop and the listener can identify each story.
+The release package is checked for a root-level index.html, valid manifest JSON, resolving local HTML references, correct PNG icon dimensions, complete service-worker shell/catalog audio, readable WAVs, ZIP CRC integrity, and identical extracted file hashes. FILES.sha256 records the packaged file hashes except itself. A final browser smoke check runs against the files extracted from the actual release ZIP.
 
-Real NFC reads/writes, real microphone quality, operating-system installation, iPhone/Android-specific browser behaviour, and screen-reader announcements were not certified in this environment. No Netlify or other production deployment was created. The package provides the files and guide needed to deploy it.
+## Checks for the intended phone
+
+1. Deploy the folder to HTTPS and open it in the intended browser/profile. Play a starter sound, wait for offline readiness, and test your device's voice with a short written story.
+2. Make a real microphone recording, save it, reload, and play it. Import an MP3. Confirm volume and speaker/headphone output.
+3. On an NFC-enabled Android phone in Chrome, choose a story, link a real NDEF tag, and use Test the tag. Check permission denial, cancellation, relinking and the optional URL-writing route on a spare writable tag. Tag hardware/serial support varies.
+4. Install where the browser offers it, close/reopen, disconnect, and play stored audio. Test written speech offline with the intended installed voice. Written text remains readable without a voice.
+5. Try the listener's screen reader, switch/keyboard input, zoom and orientation. Add transcripts for personal audio.
+6. Export a backup, restore it on the second device/browser and verify that both audio and written stories resolve through the intended tags there.
+
+Physical NFC reads/writes, device speech output, microphone quality, screen-reader announcements and operating-system installation were not certified here. No production hosting account was changed. Browser memory remains subject to origin/profile boundaries and browser/device storage cleanup; keep backups.

@@ -1,109 +1,92 @@
 # StoryTouch — A little tap. A whole story.
 
-Version 1.0.0 · Packaged 29 October 2026
+Version 1.1.0 · 29 October 2026
 
-**Start here:** extract the entire ZIP. `index.html` is directly at its root, beside the scripts, manifest, and `assets` folder. There is no build step and no dependency download. Deploy the extracted folder to an HTTPS static host, or use the local preview below. Opening the HTML as a `file://` page is not the supported way to run recording, NFC, installation, or offline storage.
+Extract the complete ZIP. **`index.html` is directly at its root**, beside the scripts, manifest and folders. There is no build step or API key. Deploy the extracted folder to HTTPS or use the local preview below. Open `README.html` for the web version of this guide.
 
-This package was rebuilt from the requested StoryTouch feature list. The referenced conversation exposed no downloadable app attachments or recoverable source, so compatibility with an earlier app’s database or backup format is not claimed. Existing unrelated local projects were not changed.
+## Three ways to add a story
 
-## Deploy to Netlify
+Choose **Add a story**, then a large method button:
 
-1. Extract the ZIP to a folder named `StoryTouch`. Check that `StoryTouch/index.html` exists. Do not upload a folder containing only the ZIP or an extra enclosing folder.
-2. Sign in to [Netlify](https://app.netlify.com/), create a project using manual deployment / Netlify Drop, and drag in the **extracted folder**. Menu wording can vary. See [Netlify’s deployment instructions](https://docs.netlify.com/deploy/create-deploys/).
-3. If using a connected Git repository instead, use the directory containing `index.html` as the publish directory. Leave the build command empty. The included `netlify.toml` sets publish to `.`.
-4. Open the assigned **HTTPS** URL in the intended browser on the intended phone. Play a test sound. Wait for **Ready for offline stories**, then add a recording and test a reload.
-5. Choose the final site address before linking URL tags. When changing the domain, browser, device, or local preview port, export a backup and restore it at the new address. Rewrite URL tags for the new address. Deploy future releases to the same Netlify project.
+1. **Type a story:** enter a name and the words, choose a device voice and pace, listen to a preview, then choose **Save story**. These stories save as text and voice preferences and use basic device text-to-speech each time. They are not converted to an MP3. Play, pause/resume, restart and Stop are available. Seeking is hidden because device speech has no audio timeline.
+2. **Record my voice:** allow the microphone, record, stop, preview, and save. Up to 30 minutes and 100 MB. Keep the page open and device awake while recording; calls and browser suspension can interrupt capture.
+3. **Add an MP3:** select an audio file, preview, and save. MP3, WAV, M4A, OGG, AAC, FLAC and WebM are accepted up to 100 MB, subject to browser decoding support. Importing does not convert codecs. MP3 is useful when moving between devices.
 
-The complete app is static. No server code, database service, API key, subscription integration, or account system is needed. `_headers` supplies content/security headers on hosts that support that file. Other static HTTPS hosts can serve the same files; configure `.webmanifest` as `application/manifest+json` if needed. Subfolder hosting works because app paths, manifest scope, and start URL are relative.
+The unfinished form saves its text and completed audio draft to this browser. An active recording cannot survive closing the page before you stop it. **Clear draft** removes the unfinished form. Drafts are separate from the saved library and are not exported in backups.
 
-Hosting availability and plan limits depend on your provider. Keep this ZIP and your separate story backups. A host serves the app’s downloadable code and included test sounds; your recorded/imported audio is kept in your browser, not uploaded by StoryTouch. Anyone allowed to visit a public deployment can download its app code.
+Every story, including a starter, has **Rename / edit**. Change its name, picture, transcript, or a written story’s words/voice, then choose **Save details**. The same menu downloads audio/text or deletes the story and its local tag links.
 
-## Preview on this computer
+Device voice availability varies. Voices labelled **online** may need a connection and may use a platform speech service. Missing saved voices fall back to a matching local language or device default. For offline speech, install a suitable device voice; use a recording/MP3 when you need stored sound. [Speech synthesis reference](https://developer.mozilla.org/en-US/docs/Web/API/SpeechSynthesis).
 
-On Windows with Python 3 installed, double-click **START-LOCAL.cmd**. On any system with Python 3, run `python serve.py` (or `python3 serve.py`) from the extracted folder. The helper opens [http://localhost:8080/](http://localhost:8080/) and serves only this folder to this computer. Keep the helper running; press Ctrl+C to stop it. You can also use a static server of your choice.
+## Starter stories and your audio folder
 
-`localhost` is treated as a secure context on the same computer. Opening a computer’s plain HTTP LAN address on an Android phone does **not** supply HTTPS. For phone NFC/microphone testing, use the deployed HTTPS URL. The helper is a development preview, not a permanent hosting service.
+**A few to try** offers a spoken welcome MP3, musical chimes and rain. Play, rename, link or delete them. Names and removals stay changed after reloads and app updates. **Restore removed starter stories** brings back the bundled choices without overwriting renamed stories already on the shelf.
 
-## Add your stories
+Add your own examples in either of two ways:
 
-1. Choose **Add a story** and enter a name. Pick a picture.
-2. Choose **Start recording**, allow microphone access, speak, and choose **Stop recording**. Or choose an audio file (up to 100 MB). MP3 and WAV are useful interchange formats; actual codec support depends on the browser.
-3. Listen to the preview. Add optional story text/transcript, then choose **Save to your library**. A preview is not saved until you press Save. The recording limit is 30 minutes; keep the page open and the device awake while recording. Phone calls, screen locks, and browser suspension can interrupt capture.
-4. Play from the library. **Edit & link** opens name, picture, and transcript editing, audio download, and deletion. Use **Tags & setup** to link the story.
+- **Inside the app:** choose **Add audio folder** and select a folder. Supported audio is copied into this browser as starter stories. Duplicate selections are skipped. The stories can be renamed/deleted and are included in backups. Selecting a folder is an import, not ongoing background access. Select it again to import files added later.
+- **Inside the package:** add audio to **`example-stories/`**, including subfolders if wanted. Double-click **UPDATE-EXAMPLES.cmd** (Python 3 required), or run `python prepare_examples.py`. Then deploy the complete app folder. The local launcher refreshes this catalog automatically. Optional: a `.txt` file with the same base name supplies a transcript, such as `owl.mp3` and `owl.txt`.
 
-Audio is saved as a Blob in IndexedDB. Large files, private browsing, blocked site storage, or a full device can prevent saving. A visible save error means it was not safely saved. Importing does not convert audio codecs. Recordings use the best offered format (often WebM/Opus on Chrome or MP4 on Safari); use MP3/WAV imports when sharing across browsers that do not support each other’s recording format.
+A static host cannot automatically list a directory for the browser. The helper generates `example-stories/stories.json` and changes the offline cache revision so new files can be offered after deployment. No JavaScript editing is needed. Close old app tabs to apply that update. Removing a file from the package stops new browsers receiving it; a copy already saved in an existing browser stays until its parent removes it. Use a new filename to offer a replacement as a new story. Per-file limit: 100 MB; catalog limit: 2,000 files. Keep the folder small enough for the intended phones to cache.
 
-## Link and use an NFC tag
+## Link a tag: choose → tap → test
 
-For direct scanning/writing, use an NFC-capable **Android phone with Chrome**, NFC enabled, an unlocked screen, and the app open over HTTPS. Web NFC exposes NDEF records; it does not provide generic RFID, low-level tag commands, or background scanning. API detection does not prove the phone has working NFC hardware. [Chrome’s Web NFC documentation](https://developer.chrome.com/docs/capabilities/nfc) describes these requirements.
+Choose **Link tag** on a story card. The visual guide has three steps:
 
-### Option A: a code plus a URL tag (recommended)
+1. **Story:** check the picture and name.
+2. **Tap tag:** choose **Link this tag**, then hold an NDEF NFC tag near the back of the phone. The phone illustration changes while listening. The app reads a code or same-app URL record, falling back to a serial number where provided.
+3. **Ready:** a green check names the linked story. Choose **Test the tag** and tap it again. The story plays and the guide confirms the test. Then choose **Open child mode**.
 
-1. In **Tags & setup**, choose a story and enter a code such as `TEDDY-1`. Choose **Save code link**. Codes use 1–48 letters, numbers, or hyphens; case is ignored. Print the code on the card as a fallback.
-2. Beside the saved link, choose **Write URL to NFC tag**. Confirm the replacement, then hold a writable NDEF tag near the phone. This overwrites the tag’s existing message; it does not lock the tag. You can use **Copy tag URL** with another NFC-writing tool instead.
-3. Choose **Enter child mode**, then **Listen for tags**, allow NFC, and hold the tag near the reader. A linked scan attempts playback. If the browser requires another gesture, press the visible **Play** button.
-4. The written URL looks like `https://your-site.example/index.html#tag=TEDDY-1`. When the operating system opens that URL outside an active scan, StoryTouch opens the linked story and waits for **Play**. It never promises background audio or autoplay on page load.
+The main linking route does not overwrite a tag. Reassigning an existing link asks for confirmation. Tags with no readable record/usable serial need the URL-writing option: open **Use a code or write a URL tag**, save a code, then choose **Write URL to NFC tag** beside its link. Confirm replacement and hold a writable tag nearby. This overwrites its current message. **Copy tag URL** works with another NFC-writing tool. Unlinking does not erase the physical tag.
 
-### Option B: link an existing tag without rewriting it
+In-app NFC needs Android Chrome, NFC hardware enabled, permission, HTTPS, an unlocked screen and the app visible. Scanning stops when hidden or when you change mode/tab. Start it again on return. Web NFC handles NDEF, not generic RFID or background scanning. [Chrome NFC documentation](https://developer.chrome.com/docs/capabilities/nfc).
 
-Choose the story, then **Read a physical tag to link**, and scan the tag. StoryTouch links a recognised text/code or app URL record, falling back to the tag’s serial number when provided. Tags without a readable record or usable serial number need Option A. Serial identifiers are not authentication and are not guaranteed for every tag.
+Other browsers can use story buttons or codes. A compatible phone’s normal tag handling may open a URL such as `https://your-site.example/index.html#tag=TEDDY-1`; the app opens the story and waits for **Play**. Scans in an active session attempt playback, but browsers may still require Play. A tag contains a code/URL, not audio. Each device/browser needs matching stories and links, normally supplied by restoring a backup.
 
-Tag links are local. The tag stores a code/URL, not the recording. A different phone needs the app, the audio, and matching links (restore a StoryTouch backup). Identical codes resolve to the story chosen on that device. Unlinking in the app does not erase or rewrite a physical tag. External URL records are not opened by the scanner.
+## Persistent memory and backups
 
-## Child playback and accessibility
+Saved stories, audio, names, pictures, written words, voice/pace, links, starter removals and drafts use local browser storage. Preferences are saved too. The app upgrades the StoryTouch 1.0 database in place. Use the same site origin, browser and profile to keep that experience; do not clear storage to update.
 
-Child mode offers large, labelled story buttons, a prominent Stop story button, and optional code entry. NFC is optional. It can be used with keyboard navigation, switch software that sends keyboard input, screen readers, or touch. Controls have visible focus, semantic labels, status announcements, and reduced-motion/forced-colour support. Picture choices also have text names. Add transcripts for a text alternative to your own audio.
+Browser memory is not permanent cloud storage. Clearing site data, private browsing, device cleanup, or switching address/browser/profile/port can make stories unavailable. **Export backup** downloads saved text/audio, links, starter-removal choices and preferences as `.storytouch.json`. Keep it safe: it includes unencrypted personal recordings. **Ask browser to keep local storage** requests persistence where supported, but is not a backup.
 
-The player supports play/pause, stop, restart, seeking, speed, and story text. Only one story plays at a time. **Spoken guidance** and **Gentle feedback sounds** can be changed in setup. Spoken guidance uses the device’s speech system; installed/offline voices vary. Child mode simplifies the interface; it is not a parental security lock. The Parent mode button remains available.
-
-NFC is unavailable in this app on desktop browsers and iPhone/iPad Safari. Story buttons and codes still work. Compatible phones may open a URL written to a tag using their normal system NFC handling, followed by a Play tap; this is separate from in-app Web NFC support.
+**Restore backup** merges other stories and replaces matching IDs/codes after confirmation. Version-1 StoryTouch 1.0 backups remain supported; new version-2 backups require StoryTouch 1.1 or later. Removed-starter preferences also remove those matching bundled stories on the target browser. Malformed backups are rejected before an atomic write. Single JSON backups support up to 200 MB of audio / 285 MB file size, subject to device memory. Larger libraries can download individual audio/text and keep a separate list of tag codes. There is no automatic cloud synchronisation.
 
 ## Install and use offline
 
-The root HTML links to **`./manifest.webmanifest`**. The manifest supplies relative start URL/scope, standalone display, and included 192/512-pixel PNG icons plus a maskable icon. [Web app manifest guidance](https://web.dev/learn/pwa/web-app-manifest) explains how browsers use it.
+Open online over HTTPS and wait for **Ready for offline stories**. The service worker caches the app, guide, icons, starter catalog and its audio. Stored stories use IndexedDB. Install where offered using **Install StoryTouch**, the browser menu, or Add to Home Screen. On iPhone/iPad Safari this is usually in Share. Installation options vary. [Manifest guidance](https://web.dev/learn/pwa/web-app-manifest).
 
-1. Open online over HTTPS. Wait for **Ready for offline stories**. The service worker caches the app shell, guide, icons, and all three test sounds. Saved custom audio lives separately in IndexedDB.
-2. Where offered, choose **Install StoryTouch**, the browser’s install icon, or **Install app / Add to Home Screen**. iPhone/iPad Safari usually offers Share → Add to Home Screen. The browser decides whether and how installation is offered.
-3. Test: disconnect from the network, reopen at the same address, play a bundled sound and a saved recording. Offline use needs a successfully completed first cache. Installation alone does not prove offline readiness.
+Disconnect and test a saved recording, MP3 and starter sound. Written stories need an available offline device voice to speak; their text remains readable. Installation alone does not prove offline readiness. New service workers wait until old app tabs close. For future app-code changes, bump the version in `sw.js`; the folder helper updates its own example revision. Preserve the database/store names to retain local stories.
 
-The screen must be unlocked and the app visible for NFC. Scanning stops when the page is hidden, the mode/tab changes, or you press Stop listening. Start it again on return. Local audio playback and recording can work offline after setup, subject to device/browser support. Browser or operating-system storage cleanup can still remove offline files and recordings.
+## Deploy to Netlify
 
-For a future release, change the version in `sw.js` when changing any cached asset. A replacement worker waits for existing app tabs to close, then takes over on reopening, preserving a consistent set of files. Do not rename the database or store names if you want to retain this version’s local stories. Updating files at the same origin does not intentionally erase recordings.
+1. Extract the ZIP. Check `index.html` is directly in the folder. Add any starter files and run the folder helper first.
+2. Use manual deployment / Netlify Drop to upload the **extracted folder**, not the ZIP or an extra enclosing folder. For Git deployment, use the directory with `index.html` as publish directory and leave the build command empty. `netlify.toml` sets publish to `.`. [Netlify deployment guide](https://docs.netlify.com/deploy/create-deploys/).
+3. Open the HTTPS URL on the intended phone. Play a starter, wait for offline readiness, record a short story, save it, reload and play it again.
+4. Choose the final address before writing URL tags. Export before changing address/browser/device; restore at the new address and rewrite URL tags. Apply updates to the same project.
 
-## Back up, restore, or move phones
+Other static HTTPS hosts and subfolder deployments also work. The manifest link is `./manifest.webmanifest`; all app/install paths are relative. Serve it as `application/manifest+json` if needed. `_headers` supplies headers on hosts that support it. Hosting availability/limits depend on the provider, so keep this package and backups. Public hosting exposes app code and starter files; recorded/imported personal audio is not uploaded by StoryTouch. Platform speech services may handle online voices.
 
-Choose **Tags & setup → Export backup**. Keep the downloaded `.storytouch.json` somewhere safe. It contains all saved custom audio, names, transcripts, tag links, and preferences. Bundled demo audio is already in every package. Backups contain unencrypted private recordings; only share them intentionally.
+## Local preview
 
-On the target device and final app address, choose **Restore backup**, select the file, review the message, and confirm. Restore merges other existing stories, replacing matching story IDs and tag codes. Restore validates the backup before an atomic database transaction; a malformed backup is rejected without partial writes. This format is specific to StoryTouch 1.0.0 and does not import unknown older app formats.
+With Python 3, double-click **START-LOCAL.cmd** on Windows, or run `python serve.py` / `python3 serve.py`. The helper refreshes examples, opens [http://localhost:8080/](http://localhost:8080/), and serves only this folder to this computer. Keep it running; Ctrl+C stops it.
 
-Browser JSON backups support up to 200 MB of custom audio in total and backup files up to 285 MB. Individual audio files are limited to 100 MB. Larger libraries should download individual recordings from each story’s Edit menu and keep a separate list of tag codes; large-file backup also depends on available browser memory. **Ask browser to keep local storage** requests persistent storage where supported, but is not a replacement for backups. There is no automatic cloud synchronisation.
+Opening `index.html` as `file://` is not the supported way to run recording, storage, installation or offline caching. Localhost is secure on the same computer. A plain HTTP computer LAN address on a phone is not HTTPS; use your deployed address for NFC testing.
 
-## Included sounds and files
+## Accessibility and troubleshooting
 
-- `assets/audio/hello.wav`: an included spoken welcome, made with a system speech voice. Its transcript is available in the player.
-- `assets/audio/chimes.wav`: a short synthesised musical sequence.
-- `assets/audio/rain.wav`: synthesised rain-like noise, with a gentle fade.
-- `index.html`, `styles.css`, `app.js`, `core.js`, `storage.js`: complete application source.
-- `manifest.webmanifest`, `sw.js`, `assets/icons/`: installation and offline assets.
-- `README.html`, `README.md`: this guide in web and text form.
-- `_headers`, `netlify.toml`: optional static-host configuration.
-- `serve.py`, `START-LOCAL.cmd`: optional local preview helper.
-- `VERIFICATION.md`: release verification and remaining device checks.
+Child mode has large story buttons, Stop, optional codes and story text. Parent tabs support arrow/Home/End keys. Controls have labels, visible focus and status announcements, with reduced-motion/forced-colour support. Add transcripts for audio. Spoken guidance/feedback sounds are optional. Child mode simplifies the interface; it is not a security lock.
 
-No external fonts, JavaScript libraries, image services, or remote audio are required. All graphics are bundled SVG/PNG or system emoji.
+- **Written story silent:** choose another voice/install an offline voice, or use recorded audio.
+- **No NFC:** use Android Chrome on an NFC phone over HTTPS, or use buttons/codes.
+- **Tag has no story:** relink the chosen story or restore the correct library in this browser/origin.
+- **Starter missing:** run the folder helper and deploy its catalog/audio together. Removed choices stay removed until deliberately restored.
+- **Microphone denied:** allow this site’s microphone in browser settings or import audio.
+- **Save failed:** check free space/site-storage permissions. An error means the change was not safely saved.
+- **Netlify 404:** deploy the folder directly containing `index.html`.
+- **Old version still shown:** close all StoryTouch tabs and reopen online; keep local storage.
 
-## If something does not work
+## Included files and verification
 
-- **Netlify 404:** deploy the extracted folder that directly contains `index.html`. Check the publish directory.
-- **No NFC button support:** use Android Chrome over HTTPS on an NFC-enabled phone; otherwise use story buttons/codes. No browser app can make unsupported NFC hardware available.
-- **Tag reads but no story:** use the same app address/browser where the story was saved, link the code or serial there, or restore your backup. Keep the tag still near the reader. URL tags must point at your final address.
-- **Audio waits for Play:** tap Play. This is the browser’s playback policy.
-- **Microphone denied:** allow microphone for this site in the browser settings, then try again; or import audio.
-- **Sound cannot play:** check device volume and output. Try a bundled WAV test sound, then an MP3/WAV import. Try the original recording browser for WebM/MP4 recordings.
-- **Offline setup incomplete:** reconnect, reload, and wait for the ready indicator. Check the host serves every cached asset successfully. Browser storage must be available.
-- **Stories disappeared:** check the exact browser, profile, site address, and port. Storage is separate for each. Restore your backup if site data was cleared.
-- **An update waits:** close all tabs/windows of StoryTouch and reopen online. Do not clear site storage unless your stories are backed up.
+The complete app is in `index.html`, `styles.css`, `app.js`, `core.js`, `storage.js` and `speech.js`. `example-stories/` supplies starter audio and its generated catalog. Folder helpers, installation/offline files, icons, guides, hosting settings and the optional local preview are included. The app itself requires no external libraries/fonts/audio services.
 
-## Verification limits
-
-See `VERIFICATION.md` for the actual release checks. Physical NFC reception/writing, microphone hardware quality, phone-specific permission UI, screen readers, and operating-system installation require checks on the target devices. Automated NFC events and a fake test microphone can verify software paths but do not certify real hardware. No production host was created for this package.
+**VERIFICATION.md** records tests and limits. Software tests use simulated NFC/speech output and a fake microphone. Real phone NFC, device voices, microphone quality, screen readers and operating-system installation need checks on the intended device. No production hosting account was changed.

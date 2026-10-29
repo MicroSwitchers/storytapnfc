@@ -1,15 +1,26 @@
 /* Bump VERSION whenever a release changes any packaged asset. */
 'use strict';
-const VERSION = 'storytouch-shell-v1.0.0';
-const CACHE = VERSION + ':' + self.registration.scope;
+const VERSION = 'storytouch-shell-v1.1.0-release';
+const EXAMPLE_REV = '2af2d5b3c6f8';
+const CACHE = VERSION + '-' + EXAMPLE_REV + ':' + self.registration.scope;
 const SHELL = [
-  './', './index.html', './styles.css', './core.js', './storage.js', './app.js',
+  './', './index.html', './styles.css', './core.js', './storage.js', './speech.js', './app.js',
   './manifest.webmanifest', './README.html', './README.md', './assets/icons/storytouch.svg',
   './assets/icons/icon-192.png', './assets/icons/icon-512.png', './assets/icons/maskable-512.png',
-  './assets/icons/apple-touch-icon.png', './assets/audio/hello.wav', './assets/audio/chimes.wav', './assets/audio/rain.wav'
+  './assets/icons/apple-touch-icon.png', './example-stories/stories.json'
 ];
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)));
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+    await cache.addAll(SHELL);
+    const response = await cache.match('./example-stories/stories.json');
+    const catalog = await response.json();
+    const files = catalog.stories.map(s => {
+      if (typeof s.file !== 'string' || s.file.split('/').some(p => !p || p === '.' || p === '..' || p.includes('\\'))) throw new Error('Invalid starter path');
+      return './example-stories/' + s.file.split('/').map(encodeURIComponent).join('/');
+    });
+    await cache.addAll(files);
+  })());
   // No skipWaiting: a new release waits until old app tabs close.
 });
 self.addEventListener('activate', event => {

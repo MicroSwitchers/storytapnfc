@@ -1,0 +1,12 @@
+Add MP3, WAV, M4A, OGG, AAC, FLAC or WebM audio files to this folder.
+
+Then double-click UPDATE-EXAMPLES.cmd in the main StoryTouch folder (Python 3 required), or run:
+python prepare_examples.py
+
+Deploy the whole StoryTouch folder. Starting the local preview also refreshes this list automatically.
+
+Parents can instead use the app's Add audio folder button. That copies chosen audio into this browser without changing the deployed files.
+
+Parents can rename or remove any starter story. These choices stay saved in that browser. New files added here will appear as new starter stories after the updated app is deployed and old app tabs are closed.
+
+Optional: put a .txt file with the same base name beside an audio file to supply a transcript (e.g. little-owl.mp3 and little-owl.txt).

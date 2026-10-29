@@ -17,6 +17,8 @@ class Handler(SimpleHTTPRequestHandler):
         super().end_headers()
 
 if __name__ == '__main__':
+    from prepare_examples import prepare
+    print(f'Starter folder: {prepare()} audio files ready.')
     address = ('127.0.0.1', 8080)
     try:
         with ThreadingHTTPServer(address, functools.partial(Handler, directory=str(ROOT))) as server:
