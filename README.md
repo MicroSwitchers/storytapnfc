@@ -1,6 +1,6 @@
 # StoryTouch — A little tap. A whole story.
 
-Version 1.4.0 · 29 October 2026
+Version 1.4.1 · 29 October 2026
 
 Extract the complete ZIP. **`index.html` is directly at its root**, beside the scripts, manifest and folders. There is no build step or API key. Deploy the extracted folder to HTTPS or use the local preview below. Open `README.html` for the web version of this guide.
 
@@ -118,7 +118,7 @@ Child mode has large story buttons, Stop, optional codes and story text. Parent 
 - **Scratchy new recording:** watch for the “Too loud” warning and move the microphone farther away. Try leaving background noise reduction off, especially for music. Existing distorted recordings need to be recorded again; the app cannot restore missing sound.
 - **Save failed:** check free space/site-storage permissions. An error means the change was not safely saved.
 - **Netlify 404:** deploy the folder directly containing `index.html`.
-- **Old version still shown:** connect, open App & offline and choose Check for updates. Wait for the download, then finish the current activity and refresh or choose Update app. Confirm version 1.4.0 in the footer. Keep site data.
+- **Old version still shown:** connect, open App & offline and choose Check for updates. Wait for the download, then finish the current activity and refresh or choose Update app. Confirm version 1.4.1 in the footer. Keep site data.
 
 ## Included files and verification
 

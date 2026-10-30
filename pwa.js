@@ -90,6 +90,10 @@
         const status = await request(worker, 'OFFLINE_STATUS');
         this.set({ offline: status.ready ? 'ready' : 'incomplete', audioCount: status.audioCount || 0,
           message: status.ready ? 'The app and all bundled stories are saved for offline use.' : 'Some offline files are missing. Connect and choose Download offline files.' });
+        if (status.ready && status.version === this.version && !this.registration?.waiting && this.state.update !== 'applying') {
+          this.activeUpdate = false;
+          this.set({ update: 'none', updateMessage: '' });
+        }
         if (status.ready && this.newerVersion(status.version)) {
           this.activeUpdate = true;
           if (this.state.update !== 'applying') {

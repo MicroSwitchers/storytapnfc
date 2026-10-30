@@ -93,3 +93,12 @@ test('a current page never reloads into an older cached worker', async () => {
   const f = fixture(); newerActive(f); f.runtime.version = 'storytouch-shell-v2.0.0-release'; await f.runtime.init();
   assert.equal(f.counts().reloads, 0); assert.equal(f.runtime.state.update, 'none');
 });
+
+test('initial installation clears the transient waiting flag once the current release activates', async () => {
+  const f = fixture(); f.runtime.version = 'storytouch-shell-v1.4.1-release';
+  f.runtime.set({ update: 'waiting' });
+  f.registration.active = { postMessage(data, ports) { ports[0].postMessage({ ready: true, audioCount: 4, version: 'storytouch-shell-v1.4.1-release' }); } };
+  await f.runtime.init(); assert.equal(f.runtime.state.update, 'none'); assert.equal(f.counts().reloads, 0);
+  f.registration.waiting = f.worker; await f.runtime.verify();
+  f.runtime.set({ update: 'waiting' }); await f.runtime.verify(); assert.equal(f.runtime.state.update, 'waiting');
+});
