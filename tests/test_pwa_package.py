@@ -15,7 +15,8 @@ class PackageChecks(unittest.TestCase):
         self.assertEqual(manifest['id'], './')
         self.assertEqual(manifest['scope'], './')
         self.assertEqual(manifest['start_url'], './index.html')
-        self.assertEqual(manifest['display'], 'standalone')
+        self.assertEqual(manifest['display'], 'fullscreen')
+        self.assertEqual(manifest['display_override'], ['fullscreen', 'standalone'])
         self.assertEqual(len(manifest['shortcuts']), 3)
         for shortcut in manifest['shortcuts']:
             target = urlsplit(shortcut['url'])

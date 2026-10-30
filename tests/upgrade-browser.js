@@ -35,13 +35,13 @@ document.getElementById('upgrade').onclick = async () => {
     if (audio.ended) { audio.currentTime = 0; await audio.play(); }
     const elapsed = audio.currentTime, registration = await oldWindow.navigator.serviceWorker.ready;
     await registration.update();
-    await until(async () => (await oldWindow.StoryPWA.request(registration.active, 'OFFLINE_STATUS')).version === 'storytouch-shell-v1.4.1-release', 'new worker activated with old tab open');
+    await until(async () => (await oldWindow.StoryPWA.request(registration.active, 'OFFLINE_STATUS')).version === 'storytouch-shell-v1.5.0-release', 'new worker activated with old tab open');
     assert(frame.contentDocument === oldDocument && !audio.paused && audio.currentTime >= elapsed, 'Update interrupted live playback');
     pass('New complete worker activates with an old tab open and leaves its playing audio running');
     audio.pause(); await load(); const w = frame.contentWindow, d = frame.contentDocument;
-    assert(d.getElementById('version-label').textContent === '1.4.1', 'Normal navigation still shows old release');
+    assert(d.getElementById('version-label').textContent === '1.5.0', 'Normal navigation still shows old release');
     assert(d.getElementById('app-update').hidden, 'Current release has a spurious update banner');
-    pass('Normal navigation opens 1.4.1 without closing other tabs or clearing site data');
+    pass('Normal navigation opens 1.5.0 without closing other tabs or clearing site data');
     assert((await w.StoryStore.all('stories')).find(s => s.id === 'upgrade-private')?.blob.size === bytes, 'Private audio lost');
     assert((await w.StoryStore.all('links')).some(l => l.key === 'code:UPGRADE' && l.storyId === 'upgrade-private'), 'Tag link lost');
     assert(d.getElementById('story-title').value === 'Keep my draft', 'Draft lost');

@@ -1,4 +1,4 @@
-/* StoryTouch 1.4.1. No accounts, analytics, CDN dependencies, or audio uploads. */
+/* StoryTouch 1.5.0. No accounts, analytics, CDN dependencies, or audio uploads. */
 (function () {
   'use strict';
   const C = window.StoryCore, DB = window.StoryStore;
@@ -11,7 +11,7 @@
   let recordingRequest = 0;
   let nfcSession = null, confirmResolve = null;
   let options = StoryChild.preferences(), cueContext, blackChild = false, resumeChildScan = false;
-  let appInitialized = false, childGeneration = 0;
+  let appInitialized = false, childGeneration = 0, playerDrawerOpen = true;
   let sourceMode = 'write', removedExamples = [], draftTimer, draftDirty = false, restoringDraft = false, draftRevision = 0;
   let lastSavedId = null, linkedTestId = null, previewing = false, wantedVoice = '';
   const speechPlayer = new StorySpeech.Player();
@@ -19,7 +19,7 @@
   const nativeMedia = new StoryMedia.Controls({ play: () => resumeAudio().catch(report), pause: pauseSelected, stop: stopAudio,
     seekbackward: details => seekMedia(audio.currentTime - (details.seekOffset || 10)),
     seekforward: details => seekMedia(audio.currentTime + (details.seekOffset || 10)), seekto: details => seekMedia(details.seekTime) });
-  const pwa = new StoryPWA.Runtime({ version: 'storytouch-shell-v1.4.1-release', change: pwaStatus, canUpdate: () => !child && !recordingBusy() && !importing && audio.paused && $('audio-preview').paused && speechPlayer.state !== 'playing' && !$('story-save').disabled && !$('example-folder-add').disabled && !$('backup-export').disabled,
+  const pwa = new StoryPWA.Runtime({ version: 'storytouch-shell-v1.5.0-release', change: pwaStatus, canUpdate: () => !child && !recordingBusy() && !importing && audio.paused && $('audio-preview').paused && speechPlayer.state !== 'playing' && !$('story-save').disabled && !$('example-folder-add').disabled && !$('backup-export').disabled,
     beforeUpdate: async () => {
       requireDB(); clearTimeout(draftTimer); if (draftDirty) await persistDraft();
       if (draftDirty) throw new Error('Finish editing your draft before updating.');
@@ -57,11 +57,27 @@
     $('wake-lock-state').textContent = messages[state];
     if (child && ['released','unavailable'].includes(state)) childStatus(messages[state], false);
   });
+  const immersive = new StoryChild.Immersive(state => {
+    $('fullscreen-state').textContent = state === 'active' ? 'Full screen is active. System navigation is still controlled by your phone.' : state === 'off' ? 'Child mode requests full screen with browser controls hidden wherever supported.' : 'This browser could not enter full screen. Install and open StoryTouch from its home-screen icon for fewer controls.';
+  });
+  new StoryChild.TouchPause({ enabled: () => child && options.touchToPause,
+    playing: () => selected && (selected.kind === 'text' ? speechPlayer.state === 'playing' : !audio.paused && !audio.ended),
+    pause: () => { pauseSelected(); childStatus('Paused after a screen touch. Use Play or tap your object to continue.', false); }
+  });
+  function setPlayerDrawer(open, focus = false) {
+    playerDrawerOpen = open;
+    const body = $('player-drawer-body');
+    if (!open && body.contains?.(document.activeElement)) $('player-drawer-toggle').focus();
+    body.hidden = !open; body.inert = !open;
+    $('player-drawer-toggle').setAttribute('aria-expanded', String(open));
+    $('player-drawer-toggle').textContent = open ? 'Hide player controls' : 'Show player controls';
+    if (focus) $('player-drawer-toggle').focus();
+  }
   const exitHold = new StoryChild.HoldExit($('child-exit'), {
-    required: () => child && (options.childLock || blackChild),
+    required: () => child,
     exit: () => { if (child) setChild(false, true).catch(report); },
     progress: seconds => {
-      const label = seconds ? 'Keep holding · ' + seconds : child && (options.childLock || blackChild) ? 'Hold 3 seconds for adult controls' : 'Adult controls';
+      const label = seconds ? 'Keep holding · ' + seconds : child ? 'Hold 3 seconds for adult controls' : 'Adult controls';
       if ($('child-exit').textContent !== label) $('child-exit').textContent = label;
       $('child-exit-status').textContent = seconds ? 'Keep holding. ' + seconds + ' seconds remaining.' : '';
     }
@@ -106,12 +122,12 @@
   }
   function syncChildSettings() {
     $('child-screen-stories').checked = options.childScreen === 'stories'; $('child-screen-black').checked = options.childScreen === 'black';
-    $('child-lock').checked = options.childLock; $('child-keep-awake').checked = options.keepAwake; $('child-tap-pause').checked = options.tapToPause;
+    $('child-keep-awake').checked = options.keepAwake; $('child-tap-pause').checked = options.tapToPause; $('child-touch-pause').checked = options.touchToPause;
     $('child-summary').textContent = (options.childScreen === 'black' ? 'Black screen · hold to exit' : options.childLock ? 'Story buttons · hold to exit' : 'Story buttons · tap to exit') + (options.tapToPause ? ' · tap to pause' : '');
   }
   function saveChildSettings() {
     options = StoryChild.preferences({ ...options, childScreen: $('child-screen-black').checked ? 'black' : 'stories',
-      childLock: $('child-lock').checked, keepAwake: $('child-keep-awake').checked, tapToPause: $('child-tap-pause').checked });
+      touchToPause: $('child-touch-pause').checked, keepAwake: $('child-keep-awake').checked, tapToPause: $('child-tap-pause').checked });
     saveOptions(); syncChildSettings(); $('child-settings-saved').textContent = '✓ Child mode settings saved.';
   }
   function stories() { return customs; }
@@ -172,12 +188,12 @@
   function childPresentation() {
     document.body.classList.toggle('child-active', child); document.body.classList.toggle('black-child', child && blackChild);
     $('app-theme').setAttribute('content', child && blackChild ? '#000000' : '#0d1414');
-    $('parent-view').hidden = child; $('child-view').hidden = !child;
+    $('parent-view').hidden = child; $('parent-view').inert = child; document.documentElement.classList.toggle('child-mode', child); $('child-view').hidden = !child;
     $('child-content').hidden = blackChild; $('player').inert = child && blackChild;
     if (blackChild) { $('child-view').removeAttribute('aria-labelledby'); $('child-view').setAttribute('aria-label', 'Child mode. Listening for story tags.'); }
     else { $('child-view').setAttribute('aria-labelledby', 'child-heading'); $('child-view').removeAttribute('aria-label'); }
     exitHold.cancel();
-    $('child-exit-help').textContent = options.childLock || blackChild ? 'Keep pressing the button, Space, or Enter for 3 seconds. Releasing early cancels.' : 'Return to adult controls.';
+    $('child-exit-help').textContent = 'Keep pressing the button, Space, or Enter for 3 seconds. Releasing early cancels.';
     childStartUI();
   }
   async function listenForChildTags() {
@@ -189,9 +205,10 @@
     if (value && !appInitialized) { tell('Your stories are still loading. Start child mode will be ready in a moment.'); return; }
     if (value && child) return;
     if (recordingBusy()) { tell('Stop your recording before changing mode.'); return; }
-    if (!value && child && (options.childLock || blackChild) && !unlocked) { childStatus('Hold the adult controls button for 3 seconds to leave child mode.', false); return; }
+    if (!value && child && !unlocked) { childStatus('Hold the adult controls button for 3 seconds to leave child mode.', false); return; }
     const generation = ++childGeneration;
     stopNFC(); stopAudio(); child = value; blackChild = false; resumeChildScan = false; childPresentation();
+    setPlayerDrawer(!value); $('child-tools').open = false;
     try { if (value) sessionStorage.setItem('storytouch-child-active', 'yes'); else sessionStorage.removeItem('storytouch-child-active'); } catch (_) {}
     wakeKeeper.setEnabled(value && options.keepAwake);
     if (value) {
@@ -199,7 +216,7 @@
       $('child-heading').tabIndex = -1; $('child-heading').focus();
       $('child-view').scrollIntoView({ block: 'start' });
       if (canNFC() && autoScan) {
-        try { await listenForChildTags(); }
+        try { const scanning = listenForChildTags(); immersive.setEnabled(true); await scanning; }
         catch (error) {
           if (generation !== childGeneration || !child) return;
           blackChild = false; childPresentation();
@@ -207,7 +224,8 @@
         }
       } else if (canNFC()) childStatus('Choose Start tag listening to continue using your objects.', false);
       else if (options.childScreen === 'black') childStatus('This browser cannot read NFC tags, so story buttons are shown. Black screen will open on a supported phone once tag listening starts.', false);
-    } else { $('mode-button').focus(); }
+      if (!canNFC() || !autoScan) immersive.setEnabled(true);
+    } else { immersive.setEnabled(false); $('mode-button').focus(); }
   }
   function resetPlayerURL() { if (objectURL) { URL.revokeObjectURL(objectURL); objectURL = null; } }
   function stopAudio() {
@@ -677,7 +695,7 @@
     if (recordingBusy()) { tell('Stop your recording before changing settings.'); return; }
     setTab('setup'); $('child-settings-heading').focus(); $('child-settings').scrollIntoView({ block: 'start' });
   });
-  ['child-screen-stories','child-screen-black','child-lock','child-keep-awake','child-tap-pause'].forEach(id => on(id, 'change', saveChildSettings));
+  ['child-screen-stories','child-screen-black','child-keep-awake','child-tap-pause','child-touch-pause'].forEach(id => on(id, 'change', saveChildSettings));
   on('step-add', 'click', () => { setTab('add', true); $('story-title').focus(); });
   on('step-link', 'click', () => { setTab('setup', true); $('link-story').focus(); $('link-preview').scrollIntoView({ block: 'center' }); });
   on('link-story','change', () => { stopNFC(); updateLinkPreview(); wizardState(2); $('link-scan-state').textContent = 'Choose Link this tag, then hold it near the back of your phone.'; });
@@ -689,6 +707,7 @@
     const tabs = ['library', 'add', 'setup'], current = tabs.indexOf(document.activeElement.dataset.tab); if (current < 0) return;
     e.preventDefault(); const next = e.key === 'Home' ? 0 : e.key === 'End' ? 2 : (current + (e.key === 'ArrowRight' ? 1 : -1) + 3) % 3; setTab(tabs[next], true);
   });
+  document.addEventListener('contextmenu', e => { if (child && !e.target.closest('input, textarea')) e.preventDefault(); });
   document.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     const run = async () => {
@@ -713,6 +732,7 @@
   on('edit-form', 'submit', saveEdit); on('edit-cancel', 'click', () => $('edit-dialog').close()); on('delete-story', 'click', removeStory);
   on('edit-link', 'click', () => { const id = editing.id; $('edit-dialog').close(); openTagSetup(id); });
   on('download-audio', 'click', () => { if (editing?.kind === 'text') { download(new Blob([editing.text], { type: 'text/plain' }), editing.title.replace(/[^a-zA-Z0-9 _-]/g, '').slice(0,70) + '.txt'); return; } if (editing) download(editing.blob, editing.title.replace(/[^a-zA-Z0-9 _-]/g, '').slice(0, 70) + '.' + audioExtension(editing.mime)); });
+  on('player-drawer-toggle', 'click', () => setPlayerDrawer(!playerDrawerOpen));
   on('player-toggle', 'click', () => { if (selected?.kind === 'text') { if (speechPlayer.state === 'playing') speechPlayer.pause(); else return resumeAudio(); } else { if (audio.paused) return resumeAudio(); audio.pause(); } });
   on('player-restart', 'click', () => { if (selected?.kind === 'text') speechPlayer.stop(); else audio.currentTime = 0; return resumeAudio(); });
   on('player-stop', 'click', stopAudio); on('child-stop-audio', 'click', () => { stopAudio(); childStatus('Story stopped. Choose another whenever you’re ready.', false); });

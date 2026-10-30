@@ -1,6 +1,6 @@
 # StoryTouch — A little tap. A whole story.
 
-Version 1.4.1 · 29 October 2026
+Version 1.5.0 · 30 October 2026
 
 Extract the complete ZIP. **`index.html` is directly at its root**, beside the scripts, manifest and folders. There is no build step or API key. Deploy the extracted folder to HTTPS or use the local preview below. Open `README.html` for the web version of this guide.
 
@@ -53,7 +53,10 @@ Use **Child mode settings** at the top of the app, or open **Tags & settings**. 
 
 - **Story buttons:** large play buttons, Stop story, and NFC listening. Entering this mode starts tag listening automatically on a supported phone. If permission is declined, story buttons still work and **Start tag listening** retries.
 - **Black screen:** the page is black with just one quiet **Hold 3 seconds for adult controls** button. NFC tags play the stories. Black mode opens after NFC listening starts successfully. If NFC is unavailable or permission is declined, child mode stays open with story buttons and visible instructions to retry. Your saved black-screen preference is kept for supported phones. If the browser needs a Play gesture, story controls temporarily appear; choosing Play returns to the black screen.
-- **Lock the exit button:** a continuous three-second press is required to return to adult controls. Releasing early, moving away, changing tabs, or losing focus cancels it. Space and Enter also work. Black screen always requires the hold, even with this setting off. This is an accidental-exit guard, not a PIN or an operating-system lock. Phone Home/Back buttons and browser navigation still work. For that restriction use the device's app-pinning or guided-access feature.
+- **Parent exit:** a continuous three-second hold is always required in both screen modes. Releasing early, moving away or losing focus cancels it. Space and Enter also work. Older saved unlocked-exit settings now require the hold too.
+- **Touch screen to pause:** on by default. A screen touch pauses a playing audio or written story and cannot also restart or switch it. The exit hold and drawer handle still work. Turn this off in adult settings when needed. NFC tag pause is a separate option.
+- **Player drawer:** child mode starts with the player tucked away. Show player controls opens Play/Pause, Restart, Stop, timeline and story text. Hide player controls tucks it away without stopping playback; hidden controls cannot take focus. Black mode hides the drawer completely.
+- **Full screen:** installed apps request fullscreen launch with a standalone fallback; Start child mode requests fullscreen with browser navigation UI hidden where allowed. Leaving browser fullscreen keeps child mode locked. Home, system gestures, app switching and security UI remain controlled by the device. For a device-level lock use [Android app pinning](https://support.google.com/android/answer/9455138?hl=en) with its PIN option, or [iPhone Guided Access](https://support.apple.com/111795). StoryTouch cannot enable those device settings itself.
 - **Keep screen awake:** requests a screen wake lock during child mode and releases it on exit. It tries again when you return to the visible app. Device power-saving rules may decline or release it; the app reports this. Black mode keeps the actual display on with black content. It does not turn the display off. Install the app for fewer browser controls.
 - **Tap the same tag to pause:** optional and off by default. Lift the tag away, then tap it again to pause that story. The next tap continues from the same position; a different tag starts its story. Finished stories restart. Works for audio and written stories. Rapid duplicate reads are ignored to prevent an immediate unintended pause. With the setting off, repeat taps restart the story as before.
 
@@ -108,7 +111,7 @@ Opening `index.html` as `file://` is not the supported way to run recording, sto
 
 ## Accessibility and troubleshooting
 
-Child mode has large story buttons, Stop, optional codes and story text. Parent tabs support arrow/Home/End keys. Controls have labels, visible focus and status announcements, with reduced-motion/forced-colour support. Add transcripts for audio. Spoken guidance/feedback sounds are optional. Child mode offers an exit hold to prevent accidental taps; it does not lock operating-system or browser controls.
+Child mode has large story buttons, a player drawer and tucked-away tag/code options. Playback controls and story text are in the drawer. Parent tabs support arrow/Home/End keys. Controls have labels, visible focus and status announcements, with reduced-motion/forced-colour support. Add transcripts for audio. Spoken guidance/feedback sounds are optional. Child mode offers an exit hold to prevent accidental taps; it does not lock operating-system or browser controls.
 
 - **Written story silent:** choose another voice/install an offline voice, or use recorded audio.
 - **No NFC:** use Android Chrome on an NFC phone over HTTPS, or use buttons/codes.
@@ -118,7 +121,7 @@ Child mode has large story buttons, Stop, optional codes and story text. Parent 
 - **Scratchy new recording:** watch for the “Too loud” warning and move the microphone farther away. Try leaving background noise reduction off, especially for music. Existing distorted recordings need to be recorded again; the app cannot restore missing sound.
 - **Save failed:** check free space/site-storage permissions. An error means the change was not safely saved.
 - **Netlify 404:** deploy the folder directly containing `index.html`.
-- **Old version still shown:** connect, open App & offline and choose Check for updates. Wait for the download, then finish the current activity and refresh or choose Update app. Confirm version 1.4.1 in the footer. Keep site data.
+- **Old version still shown:** connect, open App & offline and choose Check for updates. Wait for the download, then finish the current activity and refresh or choose Update app. Confirm version 1.5.0 in the footer. Keep site data.
 
 ## Included files and verification
 

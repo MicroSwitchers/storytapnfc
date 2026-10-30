@@ -5,8 +5,52 @@
     return { spoken: saved?.spoken === true, sounds: saved?.sounds !== false,
       playbackRate: [.75,.9,1,1.25,1.5].includes(saved?.playbackRate) ? saved.playbackRate : 1,
       childScreen: saved?.childScreen === 'black' ? 'black' : 'stories',
-      childLock: saved?.childLock !== false, keepAwake: saved?.keepAwake !== false,
+      childLock: true, keepAwake: saved?.keepAwake !== false, touchToPause: saved?.touchToPause !== false,
       tapToPause: saved?.tapToPause === true };
+  }
+  class Immersive {
+    constructor(status = () => {}) { this.status = status; this.wanted = false; }
+    async setEnabled(enabled) {
+      this.wanted = enabled;
+      if (!enabled) { if (this.owns) await this.leave(); else this.status('off'); return; }
+      const doc = root.document, element = doc.documentElement;
+      if (doc.fullscreenElement || doc.webkitFullscreenElement || root.matchMedia?.('(display-mode: fullscreen)').matches) { this.status('active'); return; }
+      if (this.pending || doc.hidden || root.navigator.userActivation?.isActive === false) return;
+      const request = element?.requestFullscreen || element?.webkitRequestFullscreen;
+      if (!request) { this.status('unavailable'); return; }
+      this.pending = true;
+      try {
+        await (element.requestFullscreen ? request.call(element, { navigationUI: 'hide' }) : request.call(element)); this.owns = true;
+        if (!this.wanted) await this.leave(); else this.status('active');
+      } catch (_) { this.status('unavailable'); }
+      finally { this.pending = false; }
+    }
+    async leave() {
+      this.owns = false;
+      const doc = root.document, exit = doc.exitFullscreen || doc.webkitExitFullscreen;
+      if (exit && (doc.fullscreenElement || doc.webkitFullscreenElement)) { try { await exit.call(doc); } catch (_) {} }
+      this.status('off');
+    }
+  }
+  class TouchPause {
+    constructor({ enabled, playing, pause }) {
+      root.document.addEventListener('pointerdown', event => {
+        this.blocked = null;
+        if (!enabled() || !playing() || event.button !== 0) return;
+        pause();
+        // The parent hold and drawer handle still work. Other controls must not turn
+        // this same touch into a resume, restart, or a different story after pausing.
+        if (event.target.closest?.('#child-exit, #player-drawer-toggle')) return;
+        this.blocked = { time: root.performance.now() };
+        event.preventDefault();
+      }, { capture: true, passive: false });
+      root.document.addEventListener('click', event => {
+        const blocked = this.blocked; this.blocked = null;
+        if (!blocked || event.detail === 0 || root.performance.now() - blocked.time > 1500) return;
+        event.preventDefault(); event.stopImmediatePropagation();
+      }, true);
+      root.document.addEventListener('pointercancel', () => { this.blocked = null; }, true);
+    }
   }
   class HoldExit {
     constructor(button, { required, exit, progress }) {
@@ -80,7 +124,7 @@
       }
     }
   }
-  const api = { preferences, HoldExit, WakeKeeper };
+  const api = { preferences, HoldExit, WakeKeeper, Immersive, TouchPause };
   root.StoryChild = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(typeof window === 'undefined' ? globalThis : window);

@@ -5,8 +5,8 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 function fixture() {
-  let time = 0, next = 0; const timers = new Map(), handlers = new Map(), globalEvents = new Map();
-  const root = { document: { hidden: false }, navigator: {}, performance: { now: () => time },
+  let time = 0, next = 0; const timers = new Map(), handlers = new Map(), globalEvents = new Map(), documentEvents = new Map();
+  const root = { document: { hidden: false, addEventListener(name, fn) { documentEvents.set(name, fn); } }, navigator: {}, performance: { now: () => time },
     setInterval(fn) { const id = ++next; timers.set(id, fn); return id; }, clearInterval(id) { timers.delete(id); },
     addEventListener(name, fn) { globalEvents.set(name, fn); } };
   root.globalThis = root;
@@ -14,14 +14,14 @@ function fixture() {
   const button = { addEventListener(name, fn) { handlers.set(name, fn); }, setPointerCapture() {},
     getBoundingClientRect() { return { left: 0, top: 0, right: 200, bottom: 60 }; } };
   const emit = (type, data = {}) => handlers.get(type)?.({ type, button: 0, pointerId: 1, isPrimary: true, preventDefault() {}, ...data });
-  return { root, button, emit, globalEvents, advance(ms, tick = true) { time += ms; if (tick) [...timers.values()].forEach(fn => fn()); } };
+  return { root, button, emit, globalEvents, documentEvents, advance(ms, tick = true) { time += ms; if (tick) [...timers.values()].forEach(fn => fn()); } };
 }
 test('legacy preferences gain child defaults and invalid settings are normalized', () => {
   const { root } = fixture(), defaults = root.StoryChild.preferences({ spoken: true });
   assert.equal(defaults.childScreen, 'stories'); assert.equal(defaults.childLock, true);
-  assert.equal(defaults.keepAwake, true); assert.equal(defaults.tapToPause, false);
+  assert.equal(defaults.touchToPause, true); assert.equal(defaults.keepAwake, true); assert.equal(defaults.tapToPause, false);
   const saved = root.StoryChild.preferences({ childScreen: 'black', childLock: false, keepAwake: false, tapToPause: true, playbackRate: 99 });
-  assert.equal(saved.childScreen, 'black'); assert.equal(saved.childLock, false); assert.equal(saved.keepAwake, false);
+  assert.equal(saved.childScreen, 'black'); assert.equal(saved.childLock, true); assert.equal(saved.keepAwake, false);
   assert.equal(saved.tapToPause, true); assert.equal(saved.playbackRate, 1);
 });
 test('a click cannot exit a locked mode and a continuous pointer hold exits after three seconds', () => {
@@ -85,4 +85,59 @@ test('unsupported or denied wake lock remains a recoverable status', async () =>
   await keeper.setEnabled(true); assert.equal(states.at(-1), 'unavailable');
   f.root.navigator.wakeLock = { async request() { throw new Error('Low battery'); } };
   await keeper.setEnabled(true); assert.equal(states.at(-1), 'unavailable');
+});
+
+test('screen-touch pause defaults on, can be disabled, and old unlocked exits become hold-only', () => {
+  const f = fixture(); assert.equal(f.root.StoryChild.preferences().touchToPause, true);
+  const saved = f.root.StoryChild.preferences({ touchToPause: false, childLock: false });
+  assert.equal(saved.touchToPause, false); assert.equal(saved.childLock, true);
+});
+test('immersive mode requests hidden navigation UI and releases only its own full-screen session', async () => {
+  const f = fixture(); let requestOptions, exits = 0;
+  const doc = f.root.document;
+  doc.documentElement = { async requestFullscreen(options) { requestOptions = options; doc.fullscreenElement = this; } };
+  doc.exitFullscreen = async () => { exits++; doc.fullscreenElement = null; };
+  const immersive = new f.root.StoryChild.Immersive(); await immersive.setEnabled(true);
+  assert.equal(requestOptions.navigationUI, 'hide'); await immersive.setEnabled(false); assert.equal(exits, 1);
+  doc.fullscreenElement = {}; await immersive.setEnabled(true); await immersive.setEnabled(false); assert.equal(exits, 1);
+});
+test('a late fullscreen grant after the parent exits is immediately released', async () => {
+  const f = fixture(); let resolve, exits = 0; const doc = f.root.document;
+  doc.documentElement = { requestFullscreen() { return new Promise(r => { resolve = () => { doc.fullscreenElement = this; r(); }; }); } };
+  doc.exitFullscreen = async () => { exits++; doc.fullscreenElement = null; };
+  const immersive = new f.root.StoryChild.Immersive(), pending = immersive.setEnabled(true);
+  await immersive.setEnabled(false); resolve(); await pending; assert.equal(exits, 1);
+});
+test('unsupported, denied and non-gesture fullscreen requests are safe fallbacks', async () => {
+  const f = fixture(), states = []; const immersive = new f.root.StoryChild.Immersive(s => states.push(s));
+  await immersive.setEnabled(true); assert.equal(states.at(-1), 'unavailable');
+  f.root.document.documentElement = { async requestFullscreen() { throw new Error('Denied'); } };
+  await immersive.setEnabled(true); assert.equal(states.at(-1), 'unavailable');
+  let requests = 0; f.root.navigator.userActivation = { isActive: false };
+  f.root.document.documentElement.requestFullscreen = async () => { requests++; };
+  await immersive.setEnabled(true); assert.equal(requests, 0);
+});
+function touchFixture() {
+  const f = fixture(); let playing = true, enabled = true, pauses = 0;
+  new f.root.StoryChild.TouchPause({ enabled: () => enabled, playing: () => playing, pause() { pauses++; playing = false; } });
+  function event(type, { special = false, detail = 1 } = {}) {
+    const e = { button: 0, detail, target: { closest() { return special ? {} : null; } }, prevented: false, stopped: false,
+      preventDefault() { this.prevented = true; }, stopImmediatePropagation() { this.stopped = true; } };
+    f.documentEvents.get(type)(e); return e;
+  }
+  return { f, event, play() { playing = true; }, disable() { enabled = false; }, pauses: () => pauses };
+}
+test('touching a playing story pauses once and consumes that gesture instead of restarting media', () => {
+  const t = touchFixture(); assert.equal(t.event('pointerdown').prevented, true); assert.equal(t.pauses(), 1);
+  assert.equal(t.event('click').stopped, true);
+  t.event('pointerdown'); assert.equal(t.event('click').stopped, false, 'next touch may use Play');
+});
+test('screen touches preserve exit holds and drawer use while still pausing playback', () => {
+  const t = touchFixture(); assert.equal(t.event('pointerdown', { special: true }).prevented, false);
+  assert.equal(t.event('click').stopped, false); assert.equal(t.pauses(), 1);
+  t.play(); t.disable(); assert.equal(t.event('pointerdown').prevented, false); assert.equal(t.pauses(), 1);
+});
+test('keyboard activation and a cancelled pointer do not inherit a stale paused-touch click block', () => {
+  const t = touchFixture(); t.event('pointerdown'); assert.equal(t.event('click', { detail: 0 }).stopped, false);
+  t.play(); t.event('pointerdown'); t.f.documentEvents.get('pointercancel')(); assert.equal(t.event('click').stopped, false);
 });

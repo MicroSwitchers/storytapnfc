@@ -40,7 +40,7 @@ function fixture(rows = [], links = []) {
     resume() { this.state = 'playing'; this.callbacks.state('Playing'); }
   } },
     StoryRecording: { async openMicrophone() { return stream; }, createRecorder() { return recorder; }, monitor() { return () => { meterStopped++; }; } },
-    document: { body: element('body'), hidden: false, getElementById: element, querySelector: element, querySelectorAll() { return []; }, addEventListener(name, fn) { documentEvents.set(name, fn); } },
+    document: { documentElement: element('html'), body: element('body'), hidden: false, getElementById: element, querySelector: element, querySelectorAll() { return []; }, addEventListener(name, fn) { documentEvents.set(name, fn); } },
     navigator: { mediaDevices: { getUserMedia() {} } }, isSecureContext: true, MediaRecorder: function () {},
     addEventListener(name, callback) { events.set(name, callback); }, Blob, TextEncoder, AbortController, performance, URLSearchParams,
     URL: class extends URL { static createObjectURL() { return 'blob:test'; } static revokeObjectURL() {} },
@@ -55,7 +55,7 @@ function fixture(rows = [], links = []) {
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../pwa.js'), 'utf8'), root);
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../media.js'), 'utf8'), root);
   let script = fs.readFileSync(path.join(__dirname, '../app.js'), 'utf8');
-  script = script.replace('init().catch(report);', 'dbReady = true; appInitialized = true; globalThis.hooks = { startRecording, stopRecording, syncExamples, refresh, setChild, saveChildSettings, playTagStory, startScan, stopNFC, exitHold, handleHash, canUpdate: () => pwa.canUpdate(), state: () => ({ recordingState, draft, child, blackChild, options, nfcSession, selected }), setRows: rows => { customs = rows; }, configure: saved => { options = StoryChild.preferences(saved); }, setInitialized: value => { appInitialized = value; childStartUI(); } };');
+  script = script.replace('init().catch(report);', 'dbReady = true; appInitialized = true; globalThis.hooks = { setPlayerDrawer, startRecording, stopRecording, syncExamples, refresh, setChild, saveChildSettings, playTagStory, startScan, stopNFC, exitHold, handleHash, canUpdate: () => pwa.canUpdate(), state: () => ({ recordingState, draft, child, blackChild, options, nfcSession, selected }), setRows: rows => { customs = rows; }, configure: saved => { options = StoryChild.preferences(saved); }, setInitialized: value => { appInitialized = value; childStartUI(); } };');
   vm.runInNewContext(script, root); root.hooks.setRows(rows);
   return { root, recorder, stream, track, events, documentEvents, element, readers, storage, counts: () => ({ stopped, meterStopped }), data: () => data, links: () => linkData };
 }
@@ -228,11 +228,11 @@ test('rapid duplicate NFC reads do not immediately pause a new story and hidden 
 });
 test('all child settings save together without dropping voice or playback preferences', () => {
   const f = fixture(); f.root.hooks.configure({ spoken: true, playbackRate: .9 });
-  f.element('child-screen-black').checked = true; f.element('child-lock').checked = false;
+  f.element('child-screen-black').checked = true; f.element('child-touch-pause').checked = true;
   f.element('child-keep-awake').checked = true; f.element('child-tap-pause').checked = true;
   f.root.hooks.saveChildSettings(); const o = f.root.hooks.state().options;
   assert.equal(o.childScreen, 'black'); assert.equal(o.tapToPause, true); assert.equal(o.keepAwake, true);
-  assert.equal(o.spoken, true); assert.equal(o.playbackRate, .9);
+  assert.equal(o.touchToPause, true); assert.equal(o.childLock, true); assert.equal(o.spoken, true); assert.equal(o.playbackRate, .9);
 });
 test('the installed Add story shortcut opens its intended parent panel', async () => {
   const f = fixture(); f.root.location.hash = '#view=add'; await f.root.hooks.handleHash();
@@ -249,4 +249,35 @@ test('app updates wait for folder imports, backup downloads and preview playback
     f.element(id).disabled = true; assert.equal(f.root.hooks.canUpdate(), false); f.element(id).disabled = false;
   }
   f.element('audio-preview').paused = false; assert.equal(f.root.hooks.canUpdate(), false);
+});
+
+test('child mode always locks legacy unlocked preferences and tucks the player drawer', async () => {
+  const f = fixture(); f.root.hooks.configure({ childLock: false }); await f.root.hooks.setChild(true);
+  assert.equal(f.element('player-drawer-body').hidden, true); assert.equal(f.element('player-drawer-body').inert, true);
+  await f.root.hooks.setChild(false); assert.equal(f.root.hooks.state().child, true);
+  f.root.hooks.setPlayerDrawer(true); assert.equal(f.element('player-drawer-body').inert, false);
+  f.root.hooks.setPlayerDrawer(false); assert.equal(f.element('player-drawer-body').hidden, true);
+  await f.root.hooks.setChild(false, true); assert.equal(f.element('player-drawer-body').hidden, false);
+});
+
+test('screen touch pauses audio and written stories in child mode, leaving the NFC session running', async () => {
+  for (const kind of ['audio', 'text']) {
+    const f = fixture(audioRows(kind)); await f.root.hooks.setChild(true); await f.root.hooks.playTagStory('bell', 'code:BELL');
+    f.documentEvents.get('pointerdown')({ button: 0, target: { closest() { return null; } }, preventDefault() {} });
+    assert.equal(f.element('player-state').textContent, 'Paused'); assert.equal(f.readers[0].signal.aborted, false);
+  }
+});
+test('screen touch never pauses adult playback and respects the saved child-mode opt-out', async () => {
+  const f = fixture(audioRows()); await f.root.hooks.playTagStory('bell', 'code:BELL');
+  const touch = () => f.documentEvents.get('pointerdown')({ button: 0, target: { closest() { return null; } }, preventDefault() {} });
+  touch(); assert.equal(f.element('story-audio').paused, false);
+  f.root.hooks.configure({ touchToPause: false }); await f.root.hooks.setChild(true); await f.root.hooks.playTagStory('bell', 'code:BELL');
+  touch(); assert.equal(f.element('story-audio').paused, false);
+});
+
+test('child mode suppresses long-press menus while adult controls and code inputs keep normal behavior', async () => {
+  const f = fixture(); let blocked = 0; const menu = input => ({ target: { closest() { return input ? {} : null; } }, preventDefault() { blocked++; } });
+  f.documentEvents.get('contextmenu')(menu(false)); assert.equal(blocked, 0);
+  await f.root.hooks.setChild(true); f.documentEvents.get('contextmenu')(menu(false)); assert.equal(blocked, 1);
+  f.documentEvents.get('contextmenu')(menu(true)); assert.equal(blocked, 1);
 });
