@@ -9,10 +9,72 @@
   "display": "standalone",
   "background_color": "#f8f7f2",
   "theme_color": "#183f37",
-  "categories": ["education", "entertainment"],
+  "categories": [
+    "education",
+    "entertainment"
+  ],
   "icons": [
-    { "src": "./assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "./assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "./assets/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "./assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "dir": "ltr",
+  "orientation": "any",
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "Your stories",
+      "short_name": "Stories",
+      "description": "Open your saved story shelf",
+      "url": "./index.html",
+      "icons": [
+        {
+          "src": "./assets/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Add a story",
+      "short_name": "Add story",
+      "description": "Record, type or import a story",
+      "url": "./index.html#view=add",
+      "icons": [
+        {
+          "src": "./assets/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Child mode",
+      "short_name": "Listen",
+      "description": "Open the child listening experience",
+      "url": "./index.html#mode=child",
+      "icons": [
+        {
+          "src": "./assets/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
   ]
 }

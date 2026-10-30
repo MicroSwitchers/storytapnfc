@@ -1,29 +1,42 @@
 {
   "version": 1,
+  "retiredIds": [
+    "demo-hello",
+    "demo-chimes",
+    "demo-rain"
+  ],
   "stories": [
     {
-      "id": "demo-chimes",
-      "title": "A pocketful of stars",
-      "symbol": "moon",
-      "transcript": "[Gentle musical chimes. No speech.]",
-      "duration": 7.0,
-      "file": "chimes.wav"
-    },
-    {
-      "id": "demo-hello",
-      "title": "A little hello",
-      "symbol": "bear",
-      "transcript": "Hello, little listener. Welcome to StoryTouch. A familiar voice can take you anywhere. Find a comfortable spot, take a slow breath, and let a little story begin.",
-      "duration": 0,
-      "file": "hello.mp3"
-    },
-    {
-      "id": "demo-rain",
-      "title": "Rain in the garden",
+      "id": "starter-63b3f76d29aec88db463",
+      "title": "Giraffe's New Friend",
       "symbol": "leaf",
-      "transcript": "[Soft simulated rain. No speech.]",
-      "duration": 10.0,
-      "file": "rain.wav"
+      "transcript": "",
+      "duration": 0,
+      "file": "Giraffe's New Friend.mp3"
+    },
+    {
+      "id": "starter-c747a859f240b6752770",
+      "title": "Music Box",
+      "symbol": "star",
+      "transcript": "",
+      "duration": 0,
+      "file": "Music Box.mp3"
+    },
+    {
+      "id": "starter-027ad080ad2984b71685",
+      "title": "Snowy Day",
+      "symbol": "moon",
+      "transcript": "",
+      "duration": 0,
+      "file": "Snowy Day.mp3"
+    },
+    {
+      "id": "starter-db720b8e38d6b7adcc7f",
+      "title": "Teddy Bear",
+      "symbol": "bear",
+      "transcript": "",
+      "duration": 0,
+      "file": "Teddy Bear.mp3"
     }
   ]
 }

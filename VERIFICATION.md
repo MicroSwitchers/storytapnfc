@@ -1,49 +1,34 @@
-# StoryTouch 1.1.0 — Verification
+# StoryTouch 1.3.1 verification
 
-29 October 2026. Browser: isolated Chromium 149.0.7827.55.
+29 October 2026. Release checks completed locally. Production deployment uses the existing main-branch GitHub Pages pipeline at MicroSwitchers/storytapnfc. Deployment status is recorded by GitHub Actions.
 
-**20 browser verification groups passed**, plus the starter-folder catalog check. There were no uncaught JavaScript exceptions or remote application asset/audio requests in these flows. The browser suite served the app with its production Content Security Policy.
+## Automated checks
 
-NFC and speech output were simulated. Recording used the browser's real MediaRecorder with a fake test microphone; actual MP3/WAV audio was decoded and played. The user-facing preview also detected installed Windows speech voices, but audible device speech was not certified by the automated fixture.
+**71 Node checks and 6 Python checks passed (77 total).**
 
-## Browser checks
+```text
+node --test tests/app.test.cjs tests/recording.test.cjs tests/child-mode.test.cjs tests/pwa.test.cjs tests/media.test.cjs tests/sw.test.cjs
+python -B -m unittest discover -s tests -p "test_*.py"
+```
 
-1. New release loads, all examples are editable local audio, manifest and offline shell are valid.
-2. Written story drafts, voice and pace survive a browser reload.
-3. Basic TTS preview, saving, pause/resume/restart and exclusive playback work through a speech fixture.
-4. Parents can rename written stories, edit their words and retain changes after reload.
-5. Microphone recording stops its tracks, retains an audio draft after reload and saves playable audio.
-6. MP3 import previews, saves and plays actual MP3 bytes.
-7. A selected audio folder supplies persistent starter stories and repeated imports avoid duplicates.
-8. Starter stories can be renamed or removed without returning on the next load.
-9. Guided NFC linking advances through tap and test states and plays a written story.
-10. NFC cancellation, permission errors, serial linking and URL writes remain usable.
-11. Backup includes text, audio, renamed examples, links and removed-example preferences.
-12. Fresh-browser restore preserves written stories, audio and removed examples; malformed backups do not write.
-13. Direct tag URLs require Play, and child buttons and manual codes support written stories.
-14. Offline reload retains renamed/removed examples and custom audio; cached MP3/range and speech fixture playback work.
-15. The v1 database upgrades in place without losing recordings or old demo-tag links.
-16. Version 1 backups still restore.
-17. Keyboard navigation, labelled inputs and responsive layouts work at 320, 390, 768 and 1280 pixels.
-18. Subfolder manifest and offline example seeding work.
-19. Unsupported speech/NFC and denied microphones have fallbacks.
-20. No uncaught JavaScript exceptions or remote application asset/audio requests.
+Coverage includes recording constraints, encoder fallback, final chunks and microphone cleanup; child-mode locks, startup and NFC fallbacks; repeat-tag pause/resume; launch shortcuts; installation prompts; verified offline readiness; failed cache installation cleanup; bypassing stale HTTP-cached assets during release installation; cached navigation and audio ranges; missing-file repair; refusing mixed-release repair; update guards, pending saves and one-time reload; multiple-window protection; native media metadata/timeline/actions; manifest identity/icons, script references and zoom support; and the starter catalog. JavaScript/Python syntax, local references, shell completeness and release checksums are checked too.
 
-## Folder and package checks
+The worker tests evaluate the actual production service-worker source with isolated Cache/Fetch/client fixtures. App tests execute the actual app/helper functions with isolated DOM, microphone, speech and NFC fixtures. No real family library was used.
 
-The folder-helper check adds an MP3 in a new subfolder with a paired transcript, regenerates the catalog, and verifies the stable story ID, title, transcript and changed offline cache revision. Repeating the helper preserves the same ID. The final starter set includes a real welcome MP3 and the two synthesised WAV test sounds.
+## Browser verification
 
-JavaScript syntax and Python compilation checks passed. Desktop and phone-width layouts were visually inspected. The responsive suite checks all parent panels and child mode at 320, 390, 768 and 1280 pixels with a populated library and player. This is structural/functional accessibility testing, not formal WCAG certification.
+**21 browser groups passed in desktop Chrome.**
 
-The release package is checked for a root-level index.html, valid manifest JSON, resolving local HTML references, correct PNG icon dimensions, complete service-worker shell/catalog audio, readable WAVs, ZIP CRC integrity, and identical extracted file hashes. FILES.sha256 records the packaged file hashes except itself. A final browser smoke check runs against the files extracted from the actual release ZIP.
+- `tests/pwa.html`: 10 groups. Complete-cache verification; repairing a deliberately missing app file; actual saved-MP3 playback and native metadata; persistence of test audio/link/draft; full app reload with the local HTTP server stopped; actual saved-audio playback with that server stopped; cached MP3 range responses; the offline recovery page; a waiting update that does not reload without consent; and an approved 1.3.0 to 1.3.1 worker update preserving a pending draft, personal MP3 and tag link.
+- `tests/mobile.html`: 4 groups covering all parent panels and the primary Start control at 320, 390, 768 and 1200 CSS pixels. No horizontal page overflow was found and Start remained at least 44 x 44 pixels. The App & offline panel was visually inspected in the 390px preview.
+- `tests/child-mode.html`: 7 groups. Single Start button with unsupported-NFC fallback; denied permission fallback; pure-black screen with one exit button and hidden/inert player; continuous reading and repeat-tag pause/resume; short-hold rejection; three-second keyboard exit and reader cleanup; normal buttons with optional unlocked exit. NFC and playback in this suite are simulated.
 
-## Checks for the intended phone
+The offline browser stage stopped the loopback test server while the browser retained the fixture. It reloaded the real app and played real stored audio through the actual service worker, rather than merely changing an online/offline badge. The network adapter itself was not disabled. The update stage restarted that server with the next release and exercised the real waiting-worker/controllerchange lifecycle.
 
-1. Deploy the folder to HTTPS and open it in the intended browser/profile. Play a starter sound, wait for offline readiness, and test your device's voice with a short written story.
-2. Make a real microphone recording, save it, reload, and play it. Import an MP3. Confirm volume and speaker/headphone output.
-3. On an NFC-enabled Android phone in Chrome, choose a story, link a real NDEF tag, and use Test the tag. Check permission denial, cancellation, relinking and the optional URL-writing route on a spare writable tag. Tag hardware/serial support varies.
-4. Install where the browser offers it, close/reopen, disconnect, and play stored audio. Test written speech offline with the intended installed voice. Written text remains readable without a voice.
-5. Try the listener's screen reader, switch/keyboard input, zoom and orientation. Add transcripts for personal audio.
-6. Export a backup, restore it on the second device/browser and verify that both audio and written stories resolve through the intended tags there.
+## Remaining device checks
 
-Physical NFC reads/writes, device speech output, microphone quality, screen-reader announcements and operating-system installation were not certified here. No production hosting account was changed. Browser memory remains subject to origin/profile boundaries and browser/device storage cleanup; keep backups.
+Physical phone NFC, operating-system PWA installation, actual headset buttons, phone wake-lock/battery behavior, safe areas on notched devices and screen-reader output still need testing on intended hardware. No formal WCAG certification or Lighthouse score is claimed. The older audio-recording browser suite remains available at `tests/browser.html` but was not rerun in this update; physical microphone sound quality was not certified.
+
+Run browser fixtures only on an isolated localhost test origin. They create test stories, links and preferences there. The PWA fixture deliberately removes one cached app asset and uses a stopped/restarted local server plus a new worker version. It never clears IndexedDB or a real family library. Local preview servers and owned test tabs are stopped after verification.
+
+Keep the hosting origin and manifest identity unchanged when deploying an update. New updates wait for the adult, save a pending draft first, reject active recording/playback/importing and require other app windows to close. Existing releases without the Update app control need their windows closed once. NFC still cannot read with the physical screen off or locked.

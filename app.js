@@ -1,18 +1,71 @@
-/* StoryTouch 1.1.0. No accounts, analytics, CDN dependencies, or audio uploads. */
+/* StoryTouch 1.3.1. No accounts, analytics, CDN dependencies, or audio uploads. */
 (function () {
   'use strict';
   const C = window.StoryCore, DB = window.StoryStore;
   const $ = id => document.getElementById(id), esc = C.escape;
   let customs = [], links = [], dbReady = false, child = false, editing = null;
-  let selected = null, objectURL = null, playGeneration = 0;
+  let selected = null, objectURL = null, playGeneration = 0, activeTagKey = null;
   let draft = null, draftURL = null, recorder = null, stream = null, recordingState = 'idle';
   let recordTimer = null, recordStarted = 0, recordSeconds = 0, importing = false;
-  let nfcSession = null, installPrompt = null, confirmResolve = null;
-  let options = { spoken: false, sounds: true, playbackRate: 1 }, cueContext;
+  let stopRecordMonitor = null, recordingInterrupted = false;
+  let recordingRequest = 0;
+  let nfcSession = null, confirmResolve = null;
+  let options = StoryChild.preferences(), cueContext, blackChild = false, resumeChildScan = false;
+  let appInitialized = false, childGeneration = 0;
   let sourceMode = 'write', removedExamples = [], draftTimer, draftDirty = false, restoringDraft = false, draftRevision = 0;
   let lastSavedId = null, linkedTestId = null, previewing = false, wantedVoice = '';
   const speechPlayer = new StorySpeech.Player();
   const audio = $('story-audio');
+  const nativeMedia = new StoryMedia.Controls({ play: () => resumeAudio().catch(report), pause: pauseSelected, stop: stopAudio,
+    seekbackward: details => seekMedia(audio.currentTime - (details.seekOffset || 10)),
+    seekforward: details => seekMedia(audio.currentTime + (details.seekOffset || 10)), seekto: details => seekMedia(details.seekTime) });
+  const pwa = new StoryPWA.Runtime({ change: pwaStatus, canUpdate: () => !child && !recordingBusy() && !importing && audio.paused && $('audio-preview').paused && speechPlayer.state !== 'playing' && !$('story-save').disabled && !$('example-folder-add').disabled && !$('backup-export').disabled,
+    beforeUpdate: async () => {
+      requireDB(); clearTimeout(draftTimer); if (draftDirty) await persistDraft();
+      if (draftDirty) throw new Error('Finish editing your draft before updating.');
+      await DB.putSetting('preferences', options); await DB.all('stories'); await DB.all('links');
+    } });
+  function pwaStatus(state) {
+    const ready = state.offline === 'ready';
+    $('offline-badge').textContent = ready ? state.online ? 'Ready for offline stories' : 'Offline · ready to play' : state.offline === 'checking' ? 'Saving offline files…' : state.offline === 'unsupported' ? 'Use HTTPS for offline setup' : 'Offline files need attention';
+    $('offline-badge').dataset.state = ready ? 'ready' : state.offline;
+    $('offline-detail').textContent = ready ? '✓ App and ' + state.audioCount + ' bundled stories available offline. Your saved audio is kept on this device too.' : state.offline === 'checking' ? 'Saving the app and bundled stories for offline use…' : 'Offline setup is incomplete. Connect and download the offline files.';
+    $('pwa-message').textContent = state.message; $('install-help').textContent = state.help;
+    $('install-state').textContent = state.installed ? '✓ StoryTouch is installed on this device.' : 'Add StoryTouch to your home screen for fewer browser controls.';
+    $('install-app').textContent = state.installed ? 'Installed' : state.installable ? 'Install StoryTouch' : 'How to install'; $('install-app').disabled = state.installed;
+    $('app-update').hidden = !['waiting','applying'].includes(state.update); $('update-now').disabled = state.busy;
+    $('update-now').textContent = state.update === 'applying' ? 'Updating…' : 'Update app';
+    $('update-feedback').textContent = state.updateMessage || '';
+    $('offline-check').textContent = ready ? 'Check offline files' : 'Download offline files';
+    $('offline-check').disabled = state.busy || state.offline === 'unsupported'; $('check-updates').disabled = state.busy || state.offline === 'unsupported';
+  }
+  function syncNativeMedia() {
+    const state = $('player-state').textContent;
+    const playing = selected?.kind === 'text' ? speechPlayer.state === 'playing' : !audio.paused && !audio.ended;
+    nativeMedia.sync(selected, ['Stopped','Finished'].includes(state) ? 'none' : playing ? 'playing' : 'paused', audio);
+  }
+  function pauseSelected() { if (selected?.kind === 'text') speechPlayer.pause(); else audio.pause(); }
+  function seekMedia(position) {
+    if (!selected || selected.kind === 'text' || recordingBusy() || !Number.isFinite(position)) return;
+    const duration = Number.isFinite(audio.duration) ? audio.duration : selected.duration;
+    if (duration > 0) { audio.currentTime = Math.max(0, Math.min(position, duration)); updateProgress(); }
+  }
+  const wakeKeeper = new StoryChild.WakeKeeper(state => {
+    const messages = { active: 'Screen is staying awake for tag listening.', off: 'Screen can sleep normally.',
+      released: 'The phone released the keep-awake request. Keep it unlocked and this app visible.',
+      unavailable: 'Keep-awake is unavailable or was declined. Keep the phone unlocked so tags can be read.' };
+    $('wake-lock-state').textContent = messages[state];
+    if (child && ['released','unavailable'].includes(state)) childStatus(messages[state], false);
+  });
+  const exitHold = new StoryChild.HoldExit($('child-exit'), {
+    required: () => child && (options.childLock || blackChild),
+    exit: () => { if (child) setChild(false, true).catch(report); },
+    progress: seconds => {
+      const label = seconds ? 'Keep holding · ' + seconds : child && (options.childLock || blackChild) ? 'Hold 3 seconds for adult controls' : 'Adult controls';
+      if ($('child-exit').textContent !== label) $('child-exit').textContent = label;
+      $('child-exit-status').textContent = seconds ? 'Keep holding. ' + seconds + ' seconds remaining.' : '';
+    }
+  });
   function on(id, event, handler) {
     $(id).addEventListener(event, e => {
       try { Promise.resolve(handler(e)).catch(report); } catch (error) { report(error); }
@@ -27,14 +80,14 @@
     if (speak) say(message);
   }
   function say(message) {
-    if (!options.spoken || !(StorySpeech.supported()) || speechPlayer.state === 'playing') return;
+    if (recordingBusy() || !options.spoken || !(StorySpeech.supported()) || speechPlayer.state === 'playing') return;
     speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(message); utterance.rate = .9;
     speechSynthesis.speak(utterance);
   }
   function childStatus(message, speak = true) { $('child-status').textContent = message; if (speak) say(message); }
   function cue() {
-    if (!options.sounds) return;
+    if (recordingBusy() || !options.sounds) return;
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
       cueContext ||= new AC();
@@ -46,6 +99,21 @@
     } catch (_) { /* Visual and spoken guidance remain available. */ }
   }
   function saveOptions() { try { localStorage.setItem('storytouch-options', JSON.stringify(options)); } catch (_) {} if (dbReady) DB.putSetting('preferences', options).catch(report); }
+  function childStartUI() {
+    $('mode-button').disabled = !appInitialized || child || recordingBusy() || importing;
+    $('mode-button').textContent = appInitialized ? 'Start child mode →' : 'Loading stories…';
+    $('mode-button').setAttribute('aria-busy', String(!appInitialized));
+  }
+  function syncChildSettings() {
+    $('child-screen-stories').checked = options.childScreen === 'stories'; $('child-screen-black').checked = options.childScreen === 'black';
+    $('child-lock').checked = options.childLock; $('child-keep-awake').checked = options.keepAwake; $('child-tap-pause').checked = options.tapToPause;
+    $('child-summary').textContent = (options.childScreen === 'black' ? 'Black screen · hold to exit' : options.childLock ? 'Story buttons · hold to exit' : 'Story buttons · tap to exit') + (options.tapToPause ? ' · tap to pause' : '');
+  }
+  function saveChildSettings() {
+    options = StoryChild.preferences({ ...options, childScreen: $('child-screen-black').checked ? 'black' : 'stories',
+      childLock: $('child-lock').checked, keepAwake: $('child-keep-awake').checked, tapToPause: $('child-tap-pause').checked });
+    saveOptions(); syncChildSettings(); $('child-settings-saved').textContent = '✓ Child mode settings saved.';
+  }
   function stories() { return customs; }
   function storyById(id) { return stories().find(s => s.id === id); }
   function requireDB() { if (!dbReady) throw new Error('Local storage is unavailable. Use a regular browser window with site storage enabled, then reload.'); }
@@ -101,17 +169,49 @@
     document.querySelector('.hero').hidden = name !== 'library';
     if (focus) $('tab-' + name).focus();
   }
-  function setChild(value) {
+  function childPresentation() {
+    document.body.classList.toggle('child-active', child); document.body.classList.toggle('black-child', child && blackChild);
+    $('app-theme').setAttribute('content', child && blackChild ? '#000000' : '#183f37');
+    $('parent-view').hidden = child; $('child-view').hidden = !child;
+    $('child-content').hidden = blackChild; $('player').inert = child && blackChild;
+    if (blackChild) { $('child-view').removeAttribute('aria-labelledby'); $('child-view').setAttribute('aria-label', 'Child mode. Listening for story tags.'); }
+    else { $('child-view').setAttribute('aria-labelledby', 'child-heading'); $('child-view').removeAttribute('aria-label'); }
+    exitHold.cancel();
+    $('child-exit-help').textContent = options.childLock || blackChild ? 'Keep pressing the button, Space, or Enter for 3 seconds. Releasing early cancels.' : 'Return to adult controls.';
+    childStartUI();
+  }
+  async function listenForChildTags() {
+    if (!child || nfcSession?.mode === 'child') return;
+    const session = await startScan('child');
+    if (child && session && nfcSession === session && session.ready) { blackChild = options.childScreen === 'black'; childPresentation(); if (blackChild) $('child-exit').focus(); }
+  }
+  async function setChild(value, unlocked = false, autoScan = true) {
+    if (value && !appInitialized) { tell('Your stories are still loading. Start child mode will be ready in a moment.'); return; }
+    if (value && child) return;
     if (recordingBusy()) { tell('Stop your recording before changing mode.'); return; }
-    stopNFC(); stopAudio(); child = value;
-    $('parent-view').hidden = value; $('child-view').hidden = !value;
-    $('mode-button').textContent = value ? 'Parent mode' : 'Enter child mode ↗';
-    if (value) { childStatus(canNFC() ? 'Choose a story below, or start listening for tags.' : 'Tap a story or enter its code. In-app NFC is unavailable in this browser.', false); $('child-heading').tabIndex = -1; $('child-heading').focus(); }
-    else { $('tab-' + (document.querySelector('[data-tab][aria-selected=true]')?.dataset.tab || 'library')).focus(); }
+    if (!value && child && (options.childLock || blackChild) && !unlocked) { childStatus('Hold the adult controls button for 3 seconds to leave child mode.', false); return; }
+    const generation = ++childGeneration;
+    stopNFC(); stopAudio(); child = value; blackChild = false; resumeChildScan = false; childPresentation();
+    try { if (value) sessionStorage.setItem('storytouch-child-active', 'yes'); else sessionStorage.removeItem('storytouch-child-active'); } catch (_) {}
+    wakeKeeper.setEnabled(value && options.keepAwake);
+    if (value) {
+      childStatus(canNFC() ? 'Choose a story or tap a linked object.' : 'Tap a story or enter its code. NFC is unavailable on this browser.', false);
+      $('child-heading').tabIndex = -1; $('child-heading').focus();
+      $('child-view').scrollIntoView({ block: 'start' });
+      if (canNFC() && autoScan) {
+        try { await listenForChildTags(); }
+        catch (error) {
+          if (generation !== childGeneration || !child) return;
+          blackChild = false; childPresentation();
+          childStatus('Tag listening could not start. You can play a story below, or choose Start tag listening to try again. ' + error.message, false);
+        }
+      } else if (canNFC()) childStatus('Choose Start tag listening to continue using your objects.', false);
+      else if (options.childScreen === 'black') childStatus('This browser cannot read NFC tags, so story buttons are shown. Black screen will open on a supported phone once tag listening starts.', false);
+    } else { $('mode-button').focus(); }
   }
   function resetPlayerURL() { if (objectURL) { URL.revokeObjectURL(objectURL); objectURL = null; } }
   function stopAudio() {
-    playGeneration++; audio.pause();
+    activeTagKey = null; playGeneration++; audio.pause();
     try { audio.currentTime = 0; } catch (_) {}
     speechPlayer.stop(); previewing = false;
     if (StorySpeech.supported()) speechSynthesis.cancel();
@@ -131,9 +231,10 @@
     $('player-text').open = false; $('player-state').textContent = 'Ready to listen'; updateProgress();
   }
   async function resumeAudio() {
+    if (recordingBusy()) { tell('Stop recording before playing a story.'); return; }
     if (!selected) return;
     if (selected.kind === 'text') {
-      const callbacks = { state: state => playerSpeechState(state), error: error => { playerSpeechState('Press Play to retry'); report(error); $('player-toggle').focus(); } };
+      const callbacks = { state: state => playerSpeechState(state), error: error => { playerSpeechState('Press Play to retry'); if (blackChild) { blackChild = false; childPresentation(); } report(error); $('player-toggle').focus(); } };
       if (speechPlayer.story?.id === selected.id && ['paused','finished'].includes(speechPlayer.state)) speechPlayer.resume();
       else speechPlayer.start(selected, Number($('player-speed').value), callbacks);
       return;
@@ -146,14 +247,27 @@
       if (error.name === 'AbortError') return;
       if (error.name === 'NotAllowedError') {
         $('player-state').textContent = 'Press Play to start';
-        if (child) childStatus('Your story is ready. Press Play to start.', false);
+        if (child && blackChild) {
+          // Never strand the listener behind a black screen if the browser requires a Play gesture.
+          blackChild = false; childPresentation(); childStatus('Your story is ready. Press Play once to allow sound, then tap your object again.', false);
+        } else if (child) childStatus('Your story is ready. Press Play to start.', false);
         $('player-toggle').focus();
       } else report(new Error('This audio could not play in this browser. Try an MP3 or WAV recording.'));
     }
   }
-  function playStory(id) { const s = storyById(id); loadStory(s); if (child) childStatus('Your story: ' + s.title, false); return resumeAudio(); }
-  function playerSpeechState(state) { $('player-state').textContent = state; const playing = speechPlayer.state === 'playing'; $('player-toggle').textContent = playing ? 'Pause' : 'Play'; $('player-toggle').setAttribute('aria-label', playing ? 'Pause story' : 'Play story'); if (state === 'Finished' && child) childStatus('Choose another story whenever you’re ready.', false); }
+  function playStory(id) { if (recordingBusy()) { tell('Stop recording before playing a story.'); return; } activeTagKey = null; const s = storyById(id); loadStory(s); if (child) childStatus('Your story: ' + s.title, false); return resumeAudio(); }
+  async function playTagStory(id, key) {
+    if (child && options.tapToPause && activeTagKey === key && selected?.id === id) {
+      const playing = selected.kind === 'text' ? speechPlayer.state === 'playing' : !audio.paused && !audio.ended;
+      const paused = selected.kind === 'text' ? speechPlayer.state === 'paused' : audio.paused && !audio.ended && $('player-state').textContent === 'Paused';
+      if (playing) { if (selected.kind === 'text') speechPlayer.pause(); else audio.pause(); childStatus('Paused: ' + selected.title, false); return; }
+      if (paused) { await resumeAudio(); childStatus('Continuing: ' + selected.title, false); return; }
+    }
+    const playback = playStory(id); activeTagKey = key; await playback;
+  }
+  function playerSpeechState(state) { $('player-state').textContent = state; const playing = speechPlayer.state === 'playing'; $('player-toggle').textContent = playing ? 'Pause' : 'Play'; $('player-toggle').setAttribute('aria-label', playing ? 'Pause story' : 'Play story'); syncNativeMedia(); if (state === 'Finished' && child) childStatus('Choose another story whenever you’re ready.', false); }
   function updateProgress() {
+    syncNativeMedia();
     $('player-seek').disabled = selected?.kind === 'text';
     $('player-seek').hidden = selected?.kind === 'text';
     if (selected?.kind === 'text') { $('player-seek').value = 0; $('player-time').textContent = 'Written story'; $('player-seek').setAttribute('aria-valuetext','Written story'); return; }
@@ -199,6 +313,19 @@
     $('record-start').disabled = importing;
     $('record-start').hidden = busy; $('record-stop').hidden = recordingState !== 'recording';
     $('audio-file').disabled = busy; $('story-save').disabled = busy; $('discard-audio').disabled = busy;
+    $('record-noise-reduction').disabled = busy; $('audio-preview').controls = !busy;
+    $('record-level-wrap').hidden = recordingState !== 'recording';
+    $('record-elapsed').hidden = recordingState !== 'recording';
+    childStartUI();
+  }
+  function releaseMicrophone() {
+    clearInterval(recordTimer); stopRecordMonitor?.(); stopRecordMonitor = null;
+    stream?.getTracks().forEach(t => t.stop()); stream = null;
+  }
+  function recordLevel(level) {
+    $('record-level').value = level?.value || 0;
+    const message = !level ? 'Level meter unavailable. Listen to your preview before saving.' : level.state === 'loud' ? 'Too loud — move a little farther from the microphone to avoid distortion.' : level.state === 'quiet' ? 'Very quiet — speak a little closer to the microphone.' : 'Listening. Use your comfortable speaking voice.';
+    if ($('record-level-state').textContent !== message) $('record-level-state').textContent = message;
   }
   async function startRecording() {
     requireDB();
@@ -207,29 +334,41 @@
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) throw new Error('Recording needs HTTPS (or localhost) and a browser with microphone recording. You can still import an audio file.');
     if (draft && !(await confirmAction('Replace the unsaved audio in this form with a new recording?', 'Replace audio'))) return;
     stopAudio(); $('audio-preview').pause(); recordingState = 'requesting'; recordingUI(); $('record-state').textContent = 'Waiting for microphone permission…';
+    const request = ++recordingRequest;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mime = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/ogg;codecs=opus', 'audio/webm'].find(t => MediaRecorder.isTypeSupported(t));
-      recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      const input = await StoryRecording.openMicrophone($('record-noise-reduction').checked);
+      if (request !== recordingRequest) { input.getTracks().forEach(t => t.stop()); return; }
+      stream = input; recorder = StoryRecording.createRecorder(input);
+      const activeRecorder = recorder;
       const chunks = []; let bytes = 0;
-      recorder.ondataavailable = e => { if (e.data?.size) { chunks.push(e.data); bytes += e.data.size; if (bytes > C.MAX_AUDIO && recorder.state === 'recording') stopRecording(); } };
-      recorder.onerror = () => { report(new Error('Recording was interrupted. Check the preview before saving, or record again.')); stopRecording(); };
+      recordingInterrupted = false;
+      recorder.ondataavailable = e => { if (e.data?.size) { chunks.push(e.data); bytes += e.data.size; if (bytes > C.MAX_AUDIO && activeRecorder.state === 'recording') stopRecording(); } };
+      recorder.onerror = () => { recordingInterrupted = true; report(new Error('Recording was interrupted. Check the preview before saving, or record again.')); stopRecording(); };
       recorder.onstop = () => {
-        clearInterval(recordTimer); stream?.getTracks().forEach(t => t.stop()); stream = null;
-        const blob = new Blob(chunks, { type: recorder.mimeType || mime || 'audio/webm' });
-        recordingState = 'idle'; recordingUI();
-        if (blob.size && blob.size <= C.MAX_AUDIO) { setDraft(blob, recordSeconds, 'New recording'); $('record-state').textContent = 'Recording finished. Listen to your preview, then save.'; }
+        if (recordingState === 'recording') recordSeconds = (Date.now() - recordStarted) / 1000;
+        releaseMicrophone();
+        // Keep all original encoded chunks and wait for the final chunk before releasing capture.
+        const blob = new Blob(chunks, { type: activeRecorder.mimeType || chunks.find(c => c.type)?.type || 'audio/webm' });
+        recorder = null; recordingState = 'idle'; recordingUI();
+        if (blob.size && blob.size <= C.MAX_AUDIO) { setDraft(blob, recordSeconds, 'New recording'); $('record-state').textContent = recordingInterrupted ? 'Recording was interrupted. Listen to the captured audio before saving, or record again.' : 'Recording finished. Listen to your preview, then save.'; }
         else report(new Error('No usable recording was captured, or it exceeded 100 MB. Please try a shorter recording.'));
       };
+      input.getAudioTracks().forEach(track => track.addEventListener('ended', () => {
+        if (activeRecorder !== recorder || recordingState !== 'recording') return;
+        recordingInterrupted = true; stopRecording();
+      }, { once: true }));
       recorder.start(1000); recordingState = 'recording'; recordStarted = Date.now(); recordSeconds = 0;
-      $('record-state').textContent = 'Recording · 0:00'; recordingUI();
+      $('record-state').textContent = 'Recording. Choose Stop recording when you’re finished.';
+      $('record-elapsed').textContent = '0:00'; recordingUI();
+      stopRecordMonitor = StoryRecording.monitor(input, recordLevel);
       recordTimer = setInterval(() => {
         recordSeconds = (Date.now() - recordStarted) / 1000;
-        $('record-state').textContent = 'Recording · ' + C.formatTime(recordSeconds);
+        $('record-elapsed').textContent = C.formatTime(recordSeconds);
         if (recordSeconds >= 1800) { stopRecording(); tell('The 30-minute recording limit was reached. Your audio is ready to preview.'); }
       }, 500);
     } catch (error) {
-      stream?.getTracks().forEach(t => t.stop()); stream = null; recordingState = 'idle'; recordingUI();
+      if (request !== recordingRequest) return;
+      releaseMicrophone(); recorder = null; recordingState = 'idle'; recordingUI();
       $('record-state').textContent = 'Recording did not start.';
       const denied = ['NotAllowedError', 'PermissionDeniedError'].includes(error.name);
       throw new Error(denied ? 'Microphone access was not allowed. You can allow it in the browser’s site settings or import an audio file.' : 'Could not start the microphone. Check it is connected and available, or import an audio file.');
@@ -238,8 +377,8 @@
   function stopRecording() {
     if (recorder?.state === 'recording') {
       recordSeconds = (Date.now() - recordStarted) / 1000;
+      clearInterval(recordTimer); stopRecordMonitor?.(); stopRecordMonitor = null;
       recordingState = 'finishing'; recordingUI(); $('record-state').textContent = 'Finishing recording…'; recorder.stop();
-      stream?.getTracks().forEach(t => t.stop());
     }
   }
   async function importAudio() {
@@ -297,7 +436,7 @@
     if (!(await confirmAction('Delete “' + s.title + '” and its tag links from this device? Export a backup first if you want to keep it.', 'Delete story'))) return;
     if (s.catalogId && !removedExamples.includes(s.catalogId)) removedExamples.push(s.catalogId);
     await DB.deleteStory(s.id, links, removedExamples); $('edit-dialog').close();
-    if (selected?.id === s.id) { stopAudio(); selected = null; audio.removeAttribute('src'); audio.load(); resetPlayerURL(); $('player').hidden = true; }
+    if (selected?.id === s.id) { stopAudio(); selected = null; syncNativeMedia(); audio.removeAttribute('src'); audio.load(); resetPlayerURL(); $('player').hidden = true; }
     await refresh(); if (lastSavedId === s.id) $('saved-banner').hidden = true; tell('Story and its links deleted from this device.'); updateStorage();
   }
   function download(blob, filename) {
@@ -311,7 +450,7 @@
     if (prior && prior.storyId !== storyId && !(await confirmAction('This tag already plays “' + storyById(prior.storyId)?.title + '”. Link it to the selected story instead?', 'Replace link'))) return false;
     await DB.putLink({ key, storyId }); await refresh(); tell('Tag linked to “' + storyById(storyId).title + '”.'); wizardSuccess(storyId); cue(); return true;
   }
-  function canNFC() { return window.isSecureContext && 'NDEFReader' in window; }
+  function canNFC() { return window.isSecureContext && typeof window.NDEFReader === 'function'; }
   function nfcError(error) {
     if (error.name === 'NotAllowedError' || error.name === 'SecurityError') return 'NFC permission was not allowed. Use Android Chrome over HTTPS and allow NFC, or use a story button or code.';
     if (error.name === 'NotSupportedError') return 'NFC is unavailable on this device. Use a story button or code.';
@@ -329,11 +468,11 @@
     if (mode !== 'child') requireDB();
     if (mode !== 'child' && !storyById($('link-story').value)) throw new Error('Choose a story first.');
     stopNFC();
-    const session = { controller: new AbortController(), reader: new NDEFReader(), mode, lastKey: '', lastTime: 0, storyId: $('link-story').value };
+    const session = { controller: new AbortController(), reader: new NDEFReader(), mode, ready: false, lastKey: '', lastTime: 0, storyId: $('link-story').value };
     nfcSession = session;
     session.reader.onreadingerror = () => { if (nfcSession !== session) return; const m = 'Tag could not be read. Try an NDEF tag and hold it closer.'; mode === 'child' ? childStatus(m) : ($('link-scan-state').textContent = m); };
     session.reader.onreading = async event => {
-      if (nfcSession !== session) return;
+      if (nfcSession !== session || document.hidden) return;
       try {
         const keys = C.tagKeys(event, canonicalURL());
         if (mode === 'link') {
@@ -344,9 +483,10 @@
           const match = keys.map(k => links.find(l => l.key === k)).find(Boolean);
           if (!match) { if (mode === 'test') $('link-scan-state').textContent = 'No linked story on this tag. Try your tag again.'; else childStatus('This tag has no story here yet. Ask a grown-up to link it in Parent mode.'); return; }
           if (mode === 'test') { if (match.storyId !== session.storyId) { $('link-scan-state').textContent = 'That is a different story’s tag. Try this story’s tag.'; return; } stopNFC(); wizardSuccess(match.storyId, true); }
-          if (session.lastKey === match.key && Date.now() - session.lastTime < 2500) return;
-          session.lastKey = match.key; session.lastTime = Date.now();
-          await playStory(match.storyId);
+          const now = Date.now(), duplicate = session.lastKey === match.key && now - session.lastTime < 1200;
+          session.lastKey = match.key; session.lastTime = now;
+          if (duplicate) return;
+          if (mode === 'child') await playTagStory(match.storyId, match.key); else await playStory(match.storyId);
         }
       } catch (error) { report(error); }
     };
@@ -355,10 +495,12 @@
     try {
       await session.reader.scan({ signal: session.controller.signal });
       if (nfcSession !== session) return;
-      if (mode === 'child') childStatus('Listening. Hold your story tag near the back of the phone.');
+      session.ready = true;
+      if (mode === 'child') childStatus('Listening for your objects. Tap a tag near the back of the phone.', false);
       else $('link-scan-state').textContent = mode === 'test' ? 'Tap your linked tag. We’ll play the story.' : 'Hold the tag near the phone. Keep it still for a moment.';
       cue();
-    } catch (error) { if (nfcSession !== session || error.name === 'AbortError') return; stopNFC(); if (mode === 'child') childStatus('Tag listening stopped. You can still tap a story.'); throw new Error(nfcError(error)); }
+      return session;
+    } catch (error) { if (nfcSession !== session || error.name === 'AbortError') return; stopNFC(); if (mode === 'child') childStatus('Tag listening could not start. Choose Start tag listening to try again, or tap a story.', false); throw new Error(nfcError(error)); }
   }
   async function writeTag(key) {
     if (!canNFC()) throw new Error('Writing tags needs Android Chrome and an NFC phone over HTTPS.');
@@ -413,31 +555,15 @@
     const removed = data.removedExamples || [], ids = new Set(rows.map(s => s.id));
     const removeIds = customs.filter(s => s.catalogId && removed.includes(s.catalogId) && !ids.has(s.id)).map(s => s.id);
     await DB.restore(rows, data.links, removed, removeIds);
-    if (selected && (rows.some(s => s.id === selected.id) || removeIds.includes(selected.id))) { stopAudio(); selected = null; resetPlayerURL(); $('player').hidden = true; }
-    if (data.options && typeof data.options.spoken === 'boolean' && typeof data.options.sounds === 'boolean') { options = { spoken: data.options.spoken, sounds: data.options.sounds }; saveOptions(); $('spoken-guidance').checked = options.spoken; $('feedback-sounds').checked = options.sounds; }
-    await refresh(); if (data.version === 1) { await syncExamples(); await refresh(); } tell('Backup restored on this device.'); updateStorage();
+    if (selected && (rows.some(s => s.id === selected.id) || removeIds.includes(selected.id))) { stopAudio(); selected = null; syncNativeMedia(); resetPlayerURL(); $('player').hidden = true; }
+    if (data.options && typeof data.options.spoken === 'boolean' && typeof data.options.sounds === 'boolean') { options = StoryChild.preferences(data.options); saveOptions(); $('spoken-guidance').checked = options.spoken; $('feedback-sounds').checked = options.sounds; syncChildSettings(); }
+    await refresh(); await syncExamples(); await refresh(); tell('Backup restored on this device.'); updateStorage();
   }
   async function updateStorage() {
     try {
       const estimate = await navigator.storage?.estimate(), persistent = await navigator.storage?.persisted?.();
       $('storage-state').textContent = (estimate ? ((estimate.usage || 0) / 1024 / 1024).toFixed(1) + ' MB used. ' : '') + (persistent ? 'Persistent storage granted. Still keep a backup.' : 'The browser may remove local data when space is low. Keep a backup.');
     } catch (_) { $('storage-state').textContent = 'Keep a backup in case browser storage is cleared.'; }
-  }
-  async function initOffline() {
-    if (!('serviceWorker' in navigator) || !window.isSecureContext || location.protocol === 'file:') { $('offline-badge').textContent = 'Use HTTPS for offline setup'; return; }
-    try {
-      const registration = await navigator.serviceWorker.register('./sw.js', { scope: './' });
-      let readyTimer;
-      const ready = await Promise.race([
-        navigator.serviceWorker.ready.finally(() => clearTimeout(readyTimer)),
-        new Promise((_, reject) => { readyTimer = setTimeout(() => reject(new Error('Offline installation timed out')), 20000); })
-      ]);
-      if (ready.active) $('offline-badge').textContent = navigator.onLine ? 'Ready for offline stories' : 'Offline · ready to play';
-      if (registration.waiting) tell('An app update is ready. Close all StoryTouch tabs and reopen to apply it.');
-      registration.addEventListener('updatefound', () => {
-        registration.installing?.addEventListener('statechange', () => { if (registration.waiting && navigator.serviceWorker.controller) tell('An app update is ready. Close all StoryTouch tabs and reopen to apply it.'); });
-      });
-    } catch (_) { $('offline-badge').textContent = 'Offline setup unavailable'; tell('Offline setup did not complete. Stay online and reload before using the app offline.'); }
   }
   function setSource(mode, persist = true) {
     if (recordingBusy() && mode !== sourceMode) { tell('Stop recording first.'); return; }
@@ -485,6 +611,16 @@
     try { const response = await fetch('./example-stories/stories.json'); if (!response.ok) throw new Error('Starter folder is unavailable.'); catalog = await response.json(); }
     catch (_) { $('example-state').textContent = 'Starter folder could not load. Your saved stories are still here.'; return; }
     if (catalog.version !== 1 || !Array.isArray(catalog.stories) || catalog.stories.length > 2000) throw new Error('The starter-story catalog is invalid.');
+    // Retire only these reserved bundled IDs, never personal stories or folder imports.
+    const retired = new Set((Array.isArray(catalog.retiredIds) ? catalog.retiredIds : []).filter(id => C.DEMOS.some(s => s.id === id)));
+    const removeIds = [...retired].filter(id => {
+      const saved = storyById(id);
+      return saved ? saved.source === 'example' : links.some(l => l.storyId === id);
+    });
+    if (removeIds.length) {
+      await DB.restore([], [], removedExamples, removeIds);
+      await refresh();
+    }
     const known = new Set(customs.map(s => s.id));
     for (const entry of catalog.stories) {
       if (known.has(entry.id) || removedExamples.includes(entry.id)) continue;
@@ -527,6 +663,7 @@
   ['story-title','story-symbol','story-written','story-transcript','tts-voice','tts-rate'].forEach(id => on(id,'input', () => { if (id === 'tts-voice') wantedVoice = ''; queueDraft(); }));
   if (StorySpeech.supported()) speechSynthesis.addEventListener('voiceschanged', populateVoices);
   on('tts-preview','click', () => {
+    if (recordingBusy()) { tell('Stop recording before playing a preview.'); return; }
     const text = $('story-written').value.trim(); if (!text) throw new Error('Write a few words to preview.');
     stopAudio(); previewing = true;
     speechPlayer.start({ id:'preview', text, ...voiceDetails('tts') }, Number($('tts-rate').value), { state: state => { $('tts-preview-state').textContent = state === 'Finished' ? '✓ Preview finished' : state + ' preview…'; }, error: error => { $('tts-preview-state').textContent = error.message; report(error); } });
@@ -536,6 +673,13 @@
   on('example-folder-add','click', () => $('example-folder').click()); on('example-folder','change',importExampleFolder);
   on('examples-reset','click', async () => { requireDB(); removedExamples = []; await DB.putSetting('removed-examples',[]); await syncExamples(); await refresh(); tell('Starter stories restored.'); });
   on('next-link','click', () => openTagSetup(lastSavedId));
+  on('child-settings-shortcut', 'click', () => {
+    if (recordingBusy()) { tell('Stop your recording before changing settings.'); return; }
+    setTab('setup'); $('child-settings-heading').focus(); $('child-settings').scrollIntoView({ block: 'start' });
+  });
+  ['child-screen-stories','child-screen-black','child-lock','child-keep-awake','child-tap-pause'].forEach(id => on(id, 'change', saveChildSettings));
+  on('step-add', 'click', () => { setTab('add', true); $('story-title').focus(); });
+  on('step-link', 'click', () => { setTab('setup', true); $('link-story').focus(); $('link-preview').scrollIntoView({ block: 'center' }); });
   on('link-story','change', () => { stopNFC(); updateLinkPreview(); wizardState(2); $('link-scan-state').textContent = 'Choose Link this tag, then hold it near the back of your phone.'; });
   on('test-linked-tag','click', () => { if (linkedTestId) $('link-story').value = linkedTestId; return startScan('test'); });
 
@@ -563,7 +707,7 @@
   });
   ['hero-add', 'library-add', 'empty-add'].forEach(id => on(id, 'click', () => { setTab('add', true); $('story-title').focus(); }));
   on('tip-setup', 'click', () => setTab('setup', true));
-  on('mode-button', 'click', () => setChild(!child)); on('setup-child', 'click', () => setChild(true));
+  on('mode-button', 'click', () => setChild(true));
   on('record-start', 'click', startRecording); on('record-stop', 'click', stopRecording);
   on('audio-file', 'change', importAudio); on('discard-audio', 'click', clearDraft); on('story-form', 'submit', saveStory);
   on('edit-form', 'submit', saveEdit); on('edit-cancel', 'click', () => $('edit-dialog').close()); on('delete-story', 'click', removeStory);
@@ -575,13 +719,13 @@
   on('player-seek', 'input', () => { const d = Number.isFinite(audio.duration) ? audio.duration : selected?.duration; if (d) audio.currentTime = Number($('player-seek').value) / 100 * d; });
   on('player-speed', 'change', async () => { const rate = Number($('player-speed').value); audio.playbackRate = rate; options.playbackRate = rate; saveOptions(); if (selected) { selected.rate = rate; if (selected.kind === 'text') speechPlayer.setRate(rate); await DB.putStory(selected); await refresh(); } });
   audio.addEventListener('timeupdate', updateProgress); audio.addEventListener('loadedmetadata', updateProgress);
-  audio.addEventListener('play', () => { $('audio-preview').pause(); $('player-state').textContent = 'Playing'; $('player-toggle').textContent = 'Pause'; $('player-toggle').setAttribute('aria-label', 'Pause story'); });
-  audio.addEventListener('pause', () => { if (selected?.kind === 'text') return; $('player-state').textContent = audio.ended ? 'Finished' : 'Paused'; $('player-toggle').textContent = 'Play'; $('player-toggle').setAttribute('aria-label', 'Play story'); });
-  audio.addEventListener('ended', () => { $('player-state').textContent = 'Finished'; if (child) childStatus('That was lovely. Choose another story.', false); });
+  audio.addEventListener('play', () => { $('audio-preview').pause(); $('player-state').textContent = 'Playing'; $('player-toggle').textContent = 'Pause'; $('player-toggle').setAttribute('aria-label', 'Pause story'); syncNativeMedia(); if (child && options.childScreen === 'black' && nfcSession?.ready && !blackChild) { blackChild = true; childPresentation(); $('child-exit').focus(); } });
+  audio.addEventListener('pause', () => { if (selected?.kind === 'text') return; $('player-state').textContent = audio.ended ? 'Finished' : 'Paused'; $('player-toggle').textContent = 'Play'; $('player-toggle').setAttribute('aria-label', 'Play story'); syncNativeMedia(); });
+  audio.addEventListener('ended', () => { $('player-state').textContent = 'Finished'; syncNativeMedia(); if (child) childStatus('That was lovely. Choose another story.', false); });
   audio.addEventListener('error', () => { if (audio.getAttribute('src')) report(new Error('This audio could not be played. Try importing an MP3 or WAV file.')); });
-  $('audio-preview').addEventListener('play', () => { audio.pause(); speechPlayer.stop(); });
+  $('audio-preview').addEventListener('play', () => { if (recordingBusy()) { $('audio-preview').pause(); return; } audio.pause(); speechPlayer.stop(); });
   on('link-form', 'submit', async e => { e.preventDefault(); await saveLink('code:' + C.code($('tag-code').value), $('link-story').value); });
-  on('read-link', 'click', () => startScan('link')); on('child-scan', 'click', () => startScan('child'));
+  on('read-link', 'click', () => startScan('link')); on('child-scan', 'click', listenForChildTags);
   on('child-stop-scan', 'click', () => { stopNFC(); childStatus('Tag listening stopped. You can still tap a story.', false); });
   on('cancel-link-scan', 'click', () => { stopNFC(); tell('Tag operation cancelled.'); });
   on('child-code-form', 'submit', e => { e.preventDefault(); return playCode($('child-code').value); });
@@ -591,25 +735,56 @@
   on('persist-storage', 'click', async () => { if (!navigator.storage?.persist) throw new Error('This browser does not offer a persistent-storage request. Keep an exported backup.'); const granted = await navigator.storage.persist(); tell(granted ? 'The browser agreed to keep local storage. Keep an exported backup too.' : 'The browser did not grant persistent storage. Export regular backups.'); await updateStorage(); });
   on('spoken-guidance', 'change', () => { options.spoken = $('spoken-guidance').checked; saveOptions(); if (options.spoken) say('Spoken guidance is on.'); else if (StorySpeech.supported()) speechSynthesis.cancel(); });
   on('feedback-sounds', 'change', () => { options.sounds = $('feedback-sounds').checked; saveOptions(); if (options.sounds) cue(); });
-  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; $('install-app').textContent = 'Install StoryTouch'; });
-  window.addEventListener('appinstalled', () => { installPrompt = null; $('install-app').textContent = 'StoryTouch installed'; tell('StoryTouch is installed.'); });
-  on('install-app', 'click', async () => { if (installPrompt) { await installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('install-app').textContent = 'How to install'; } else { $('install-help').textContent = 'Android Chrome: browser menu → Add to Home screen → Install. iPhone/iPad Safari: Share → Add to Home Screen. Desktop Chrome/Edge: use the browser’s install icon or menu. Options depend on your browser.'; tell('Installation instructions are shown below the button.'); } });
-  document.addEventListener('visibilitychange', () => { if (document.hidden && nfcSession) { stopNFC(); if (child) childStatus('Tag listening paused. Choose Listen for tags again when you return.', false); } });
-  window.addEventListener('pagehide', () => { stopNFC(); stopRecording(); stream?.getTracks().forEach(t => t.stop()); audio.pause(); speechPlayer.stop(); });
+  
+  
+  on('install-app', 'click', () => pwa.install());
+  on('check-updates', 'click', () => pwa.checkUpdates());
+  on('offline-check', 'click', () => pwa.state.offline === 'ready' ? pwa.verify() : pwa.downloadOffline());
+  on('update-now', 'click', () => pwa.applyUpdate());
+  document.addEventListener('visibilitychange', () => {
+    exitHold.cancel();
+    if (document.hidden) {
+      if (nfcSession?.mode === 'child') childStatus('Tag listening is paused while the screen is off or the app is hidden.', false);
+      else if (nfcSession) stopNFC();
+    } else if (child && nfcSession?.mode === 'child' && nfcSession.ready) {
+      nfcSession.lastKey = ''; nfcSession.lastTime = 0;
+      childStatus('Listening for your objects again.', false);
+    }
+    // Keep the existing child reader: Chrome suspends and resumes it with page visibility.
+    wakeKeeper.setEnabled(child && options.keepAwake);
+  });
+  window.addEventListener('pagehide', () => { recordingRequest++; resumeChildScan = child && nfcSession?.mode === 'child'; exitHold.cancel(); wakeKeeper.setEnabled(false); stopNFC(); stopRecording(); releaseMicrophone(); if (recordingState === 'requesting') { recordingState = 'idle'; recordingUI(); } audio.pause(); speechPlayer.stop(); });
+  window.addEventListener('pageshow', event => {
+    if (!event.persisted || !child) return;
+    wakeKeeper.setEnabled(options.keepAwake);
+    if (resumeChildScan) { resumeChildScan = false; listenForChildTags().catch(error => { blackChild = false; childPresentation(); report(error); }); }
+  });
   window.addEventListener('beforeunload', e => { if (draftDirty || recordingBusy()) { e.preventDefault(); e.returnValue = ''; } });
   window.addEventListener('offline', () => { if (navigator.serviceWorker?.controller) $('offline-badge').textContent = 'Offline · ready to play'; });
-  window.addEventListener('online', () => { if (navigator.serviceWorker?.controller) $('offline-badge').textContent = 'Ready for offline stories'; });
-  async function handleHash() { const code = new URLSearchParams(location.hash.slice(1)).get('tag'); if (code) { setChild(true); playCode(code, false); } }
+  async function nfcPermissionGranted() { try { return canNFC() && (await navigator.permissions.query({ name: 'nfc' })).state === 'granted'; } catch (_) { return false; } }
+  async function handleHash() {
+    const params = new URLSearchParams(location.hash.slice(1)), code = params.get('tag');
+    if (code) { if (!child) await setChild(true, false, false); blackChild = false; childPresentation(); playCode(code, false); }
+    else if (!child && params.get('mode') === 'child') await setChild(true, false, await nfcPermissionGranted());
+    else if (!child && ['add','setup','library'].includes(params.get('view'))) setTab(params.get('view'), true);
+  }
   window.addEventListener('hashchange', () => handleHash().catch(report));
   async function init() {
-    try { const saved = JSON.parse(localStorage.getItem('storytouch-options')); if (saved) options = { spoken: saved.spoken === true, sounds: saved.sounds !== false, playbackRate: [.75,.9,1,1.25,1.5].includes(saved.playbackRate) ? saved.playbackRate : 1 }; } catch (_) {}
+    try { const saved = JSON.parse(localStorage.getItem('storytouch-options')); if (saved) options = StoryChild.preferences(saved); } catch (_) {}
     $('spoken-guidance').checked = options.spoken; $('feedback-sounds').checked = options.sounds;
     $('nfc-support').textContent = canNFC() ? 'NFC ready · Phone unlocked · App open' : 'NFC unavailable here · Use Android Chrome with NFC, or use a code.';
     $('read-link').disabled = !canNFC(); $('child-scan').disabled = !canNFC();
-    try { await DB.open(); dbReady = true; const preferences = await DB.getSetting('preferences'); if (preferences) { options = { spoken: preferences.spoken === true, sounds: preferences.sounds !== false, playbackRate: [.75,.9,1,1.25,1.5].includes(preferences.playbackRate) ? preferences.playbackRate : 1 }; $('spoken-guidance').checked = options.spoken; $('feedback-sounds').checked = options.sounds; } await refresh(); await syncExamples(); await refresh(); await restoreDraft(); } catch (error) { render(); report(error); }
-    populateVoices(); setSource(sourceMode, false); updateStorage(); initOffline();
+    try { await DB.open(); dbReady = true; const preferences = await DB.getSetting('preferences'); if (preferences) { options = StoryChild.preferences(preferences); $('spoken-guidance').checked = options.spoken; $('feedback-sounds').checked = options.sounds; } await refresh(); await syncExamples(); await refresh(); await restoreDraft(); } catch (error) { render(); report(error); }
+    syncChildSettings();
+    appInitialized = true; childStartUI();
+    populateVoices(); setSource(sourceMode, false); updateStorage(); pwa.init();
     if (location.protocol === 'file:') report(new Error('For reliable recording, storage, NFC, and offline setup, serve this folder over HTTPS or localhost. See Help & deployment.'));
     await handleHash();
+    try {
+      if (!child && sessionStorage.getItem('storytouch-child-active') === 'yes') {
+        await setChild(true, false, await nfcPermissionGranted());
+      }
+    } catch (error) { report(error); }
   }
   init().catch(report);
 })();
