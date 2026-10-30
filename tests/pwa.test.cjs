@@ -65,3 +65,31 @@ test('offline update checks do not issue a network update request', async () => 
   const f = fixture(); await f.runtime.init(); let calls = 0; f.registration.update = async () => { calls++; };
   f.events.get('offline')(); await f.runtime.checkUpdates(); assert.equal(calls, 0); assert.match(f.runtime.state.message, /offline/);
 });
+
+function newerActive(f) {
+  f.runtime.version = 'storytouch-shell-v1.4.0-release';
+  f.registration.active = { postMessage(data, ports) { ports[0].postMessage({ ready: true, audioCount: 4, version: 'storytouch-shell-v1.5.0-release' }); } };
+}
+test('an untouched adult launch saves then refreshes to the newer active release exactly once', async () => {
+  const f = fixture(); newerActive(f); await f.runtime.init(); await f.runtime.verify();
+  assert.equal(f.counts().saved, 1); assert.equal(f.counts().reloads, 1);
+});
+test('active playback or child mode defers a new release without interrupting the activity', async () => {
+  const f = fixture(); newerActive(f); f.allow(false); await f.runtime.init();
+  assert.equal(f.counts().reloads, 0); assert.equal(f.runtime.state.update, 'waiting');
+  f.allow(true); await f.runtime.applyUpdate(); assert.equal(f.counts().reloads, 1);
+});
+test('after interaction an active release waits for Update app and does not require other tabs to close', async () => {
+  const f = fixture(); newerActive(f); f.events.get('pointerdown')(); await f.runtime.init();
+  assert.equal(f.counts().reloads, 0); await f.runtime.applyUpdate(); assert.equal(f.counts().reloads, 1);
+  assert.ok(!f.requests.includes('APPLY_UPDATE'));
+});
+test('a failed draft save defers an active release and can be retried', async () => {
+  const f = fixture(); newerActive(f); f.runtime.beforeUpdate = async () => { throw new Error('Storage full'); }; await f.runtime.init();
+  assert.equal(f.counts().reloads, 0); assert.equal(f.runtime.state.update, 'waiting');
+  f.runtime.beforeUpdate = async () => {}; await f.runtime.applyUpdate(); assert.equal(f.counts().reloads, 1);
+});
+test('a current page never reloads into an older cached worker', async () => {
+  const f = fixture(); newerActive(f); f.runtime.version = 'storytouch-shell-v2.0.0-release'; await f.runtime.init();
+  assert.equal(f.counts().reloads, 0); assert.equal(f.runtime.state.update, 'none');
+});

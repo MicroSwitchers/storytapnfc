@@ -1,4 +1,4 @@
-/* StoryTouch 1.3.1. No accounts, analytics, CDN dependencies, or audio uploads. */
+/* StoryTouch 1.4.0. No accounts, analytics, CDN dependencies, or audio uploads. */
 (function () {
   'use strict';
   const C = window.StoryCore, DB = window.StoryStore;
@@ -19,7 +19,7 @@
   const nativeMedia = new StoryMedia.Controls({ play: () => resumeAudio().catch(report), pause: pauseSelected, stop: stopAudio,
     seekbackward: details => seekMedia(audio.currentTime - (details.seekOffset || 10)),
     seekforward: details => seekMedia(audio.currentTime + (details.seekOffset || 10)), seekto: details => seekMedia(details.seekTime) });
-  const pwa = new StoryPWA.Runtime({ change: pwaStatus, canUpdate: () => !child && !recordingBusy() && !importing && audio.paused && $('audio-preview').paused && speechPlayer.state !== 'playing' && !$('story-save').disabled && !$('example-folder-add').disabled && !$('backup-export').disabled,
+  const pwa = new StoryPWA.Runtime({ version: 'storytouch-shell-v1.4.0-release', change: pwaStatus, canUpdate: () => !child && !recordingBusy() && !importing && audio.paused && $('audio-preview').paused && speechPlayer.state !== 'playing' && !$('story-save').disabled && !$('example-folder-add').disabled && !$('backup-export').disabled,
     beforeUpdate: async () => {
       requireDB(); clearTimeout(draftTimer); if (draftDirty) await persistDraft();
       if (draftDirty) throw new Error('Finish editing your draft before updating.');
@@ -122,7 +122,7 @@
   async function refresh() { customs = await DB.all('stories'); links = await DB.all('links'); removedExamples = await DB.getSetting('removed-examples', []); customs.sort((a, b) => b.created - a.created); render(); }
   function storyCard(s) {
     const text = s.kind === 'text', example = s.source === 'example';
-    return `<article class="story-card"><div class="story-cover ${esc(s.symbol)}"><span class="cover-ring" aria-hidden="true"></span><span class="sample-label">${example ? 'STARTER STORY' : text ? 'WRITTEN STORY' : 'YOUR AUDIO'}</span><span class="picture" aria-hidden="true">${C.SYMBOLS[s.symbol] || C.SYMBOLS.book}</span></div><div class="card-body"><h3>${esc(s.title)}</h3><p class="card-meta">${text ? 'Aa · Device voice' : '♫ · ' + (s.duration ? C.formatTime(s.duration) : 'Audio story')} ${links.some(l => l.storyId === s.id) ? '<span class="linked-badge">✓ Tag linked</span>' : ''}</p><div class="card-actions"><button class="button dark" data-play="${esc(s.id)}" aria-label="Play ${esc(s.title)}"><span aria-hidden="true">▶</span> Play</button><button class="button outline" data-link="${esc(s.id)}" aria-label="Link tag to ${esc(s.title)}">))) Link tag</button></div><button class="text-button card-edit" data-edit="${esc(s.id)}" aria-label="Edit ${esc(s.title)}">Rename / edit</button></div></article>`;
+    return `<article class="story-card"><div class="story-cover book"><span class="cover-ring" aria-hidden="true"></span><span class="sample-label">${example ? 'STARTER STORY' : text ? 'WRITTEN STORY' : 'YOUR AUDIO'}</span><span class="picture" aria-hidden="true">${C.BOOK_ICON}</span></div><div class="card-body"><h3>${esc(s.title)}</h3><p class="card-meta">${text ? 'Aa · Device voice' : '♫ · ' + (s.duration ? C.formatTime(s.duration) : 'Audio story')} ${links.some(l => l.storyId === s.id) ? '<span class="linked-badge">✓ Tag linked</span>' : ''}</p><div class="card-actions"><button class="button dark" data-play="${esc(s.id)}" aria-label="Play ${esc(s.title)}"><span aria-hidden="true">▶</span> Play</button><button class="button outline" data-link="${esc(s.id)}" aria-label="Link tag to ${esc(s.title)}">))) Link tag</button></div><button class="text-button card-edit" data-edit="${esc(s.id)}" aria-label="Edit ${esc(s.title)}">Rename / edit</button></div></article>`;
   }
   function render() {
     const list = stories(), personal = list.filter(s => s.source !== 'example'), examples = list.filter(s => s.source === 'example');
@@ -131,7 +131,7 @@
     $('story-grid').innerHTML = personal.map(storyCard).join('');
     $('example-grid').innerHTML = examples.map(storyCard).join(''); $('empty-library').hidden = personal.length > 0;
     $('examples-reset').hidden = !removedExamples.length;
-    $('child-stories').innerHTML = list.map(s => `<button class="child-story" data-play="${esc(s.id)}" aria-label="Play ${esc(s.title)}"><span class="picture" aria-hidden="true">${C.SYMBOLS[s.symbol] || C.SYMBOLS.book}</span><strong>${esc(s.title)}</strong><small><span aria-hidden="true">▶</span> Play story</small></button>`).join('');
+    $('child-stories').innerHTML = list.map(s => `<button class="child-story" data-play="${esc(s.id)}" aria-label="Play ${esc(s.title)}"><span class="picture" aria-hidden="true">${C.BOOK_ICON}</span><strong>${esc(s.title)}</strong><small><span aria-hidden="true">▶</span> Play story</small></button>`).join('');
     const prior = $('link-story').value;
     $('link-story').innerHTML = list.map(s => `<option value="${esc(s.id)}">${esc(s.title)}</option>`).join('');
     if (storyById(prior)) $('link-story').value = prior;
@@ -141,7 +141,7 @@
   }
   function updateLinkPreview() {
     const s = storyById($('link-story').value);
-    $('link-preview').innerHTML = s ? `<span aria-hidden="true">${C.SYMBOLS[s.symbol] || C.SYMBOLS.book}</span><div><strong>${esc(s.title)}</strong><small>${s.kind === 'text' ? 'Written story' : 'Audio story'}</small></div>` : '<p>Add a story first.</p>';
+    $('link-preview').innerHTML = s ? `<span aria-hidden="true">${C.BOOK_ICON}</span><div><strong>${esc(s.title)}</strong><small>${s.kind === 'text' ? 'Written story' : 'Audio story'}</small></div>` : '<p>Add a story first.</p>';
   }
   function wizardState(step, instruction) {
     for (let i = 1; i <= 3; i++) {
@@ -171,7 +171,7 @@
   }
   function childPresentation() {
     document.body.classList.toggle('child-active', child); document.body.classList.toggle('black-child', child && blackChild);
-    $('app-theme').setAttribute('content', child && blackChild ? '#000000' : '#183f37');
+    $('app-theme').setAttribute('content', child && blackChild ? '#000000' : '#0d1414');
     $('parent-view').hidden = child; $('child-view').hidden = !child;
     $('child-content').hidden = blackChild; $('player').inert = child && blackChild;
     if (blackChild) { $('child-view').removeAttribute('aria-labelledby'); $('child-view').setAttribute('aria-label', 'Child mode. Listening for story tags.'); }
@@ -226,7 +226,7 @@
     else { objectURL = URL.createObjectURL(s.blob); audio.src = objectURL; }
     audio.playbackRate = Number($('player-speed').value);
     $('player').hidden = false; $('player-title').textContent = s.title;
-    $('player-picture').textContent = C.SYMBOLS[s.symbol] || C.SYMBOLS.book;
+    $('player-picture').innerHTML = C.BOOK_ICON;
     $('player-transcript').textContent = s.kind === 'text' ? s.text : (s.transcript || ''); $('player-text').hidden = !(s.text || s.transcript);
     $('player-text').open = false; $('player-state').textContent = 'Ready to listen'; updateProgress();
   }
@@ -401,7 +401,7 @@
     e.preventDefault(); requireDB();
     if (recordingBusy() || importing) throw new Error('Finish recording or importing before saving.');
     const title = $('story-title').value.trim(); if (!title) throw new Error('Give your story a name.');
-    const story = { id: crypto.randomUUID ? crypto.randomUUID() : 's-' + Date.now() + '-' + Math.random().toString(36).slice(2), title, symbol: $('story-symbol').value, source: 'personal', created: Date.now() };
+    const story = { id: crypto.randomUUID ? crypto.randomUUID() : 's-' + Date.now() + '-' + Math.random().toString(36).slice(2), title, symbol: 'book', source: 'personal', created: Date.now() };
     if (sourceMode === 'write') {
       const text = $('story-written').value.trim(); if (!text) throw new Error('Write a little story first.');
       Object.assign(story, { kind: 'text', text, transcript: text, ...voiceDetails('tts'), duration: 0 });
@@ -418,14 +418,14 @@
   }
   function editStory(id) {
     editing = storyById(id); if (!editing) return;
-    $('edit-title').value = editing.title; $('edit-symbol').value = editing.symbol; $('edit-transcript').value = editing.kind === 'text' ? editing.text : (editing.transcript || '');
+    $('edit-title').value = editing.title; $('edit-symbol').value = 'book'; $('edit-transcript').value = editing.kind === 'text' ? editing.text : (editing.transcript || '');
     $('edit-written-controls').hidden = editing.kind !== 'text'; $('edit-text-label').textContent = editing.kind === 'text' ? 'Your written story' : 'Story text or notes';
     populateVoices(); $('edit-voice').value = editing.voiceURI || ''; $('edit-rate').value = String(editing.rate || .9); $('download-audio').textContent = editing.kind === 'text' ? 'Download story text' : 'Download audio';
     $('edit-dialog').showModal();
   }
   async function saveEdit(e) {
     e.preventDefault(); requireDB(); const title = $('edit-title').value.trim(); if (!title) return;
-    const updated = { ...editing, title, symbol: $('edit-symbol').value, transcript: $('edit-transcript').value, updated: Date.now() };
+    const updated = { ...editing, title, symbol: 'book', transcript: $('edit-transcript').value, updated: Date.now() };
     if (editing.kind === 'text') { if (!updated.transcript.trim()) throw new Error('Your written story needs some words.'); Object.assign(updated, { text: updated.transcript, ...voiceDetails('edit') }); }
     await DB.putStory(updated); $('edit-dialog').close(); await refresh();
     if (selected?.id === updated.id) loadStory(updated);
@@ -544,7 +544,7 @@
     let data; try { data = C.validateBackup(JSON.parse(await file.text())); } catch (error) { throw new Error('Backup could not be read. ' + error.message); }
     if (!(await confirmAction('Restore ' + data.stories.length + ' stories and ' + data.links.length + ' tag links? Other stories stay. Matching story IDs and tag codes are replaced.', 'Restore backup'))) return;
     const rows = data.stories.map(s => {
-      const meta = { id: s.id, title: s.title, symbol: s.symbol, transcript: s.transcript, duration: s.duration, source: s.source === 'example' ? 'example' : 'personal', created: Number.isFinite(s.created) ? s.created : Date.now() };
+      const meta = { id: s.id, title: s.title, symbol: 'book', transcript: s.transcript, duration: s.duration, source: s.source === 'example' ? 'example' : 'personal', created: Number.isFinite(s.created) ? s.created : Date.now() };
       if (typeof s.catalogId === 'string' && /^[a-zA-Z0-9_-]{1,100}$/.test(s.catalogId)) meta.catalogId = s.catalogId;
       if (typeof s.exampleFile === 'string') meta.exampleFile = s.exampleFile.slice(0,1000);
       if (s.kind === 'text') return { ...meta, kind: 'text', text: s.text, voiceURI: s.voiceURI, voiceLang: s.voiceLang, rate: s.rate };
@@ -593,13 +593,13 @@
   }
   async function persistDraft() {
     const revision = draftRevision;
-    const snapshot = { sourceMode, title: $('story-title').value, symbol: $('story-symbol').value, text: $('story-written').value, transcript: $('story-transcript').value, voiceURI: $('tts-voice').value || wantedVoice, rate: $('tts-rate').value, audio: draft };
+    const snapshot = { sourceMode, title: $('story-title').value, symbol: 'book', text: $('story-written').value, transcript: $('story-transcript').value, voiceURI: $('tts-voice').value || wantedVoice, rate: $('tts-rate').value, audio: draft };
     await DB.putSetting('draft', snapshot); if (revision === draftRevision) { draftDirty = false; $('draft-state').textContent = '✓ Draft saved on this device'; }
   }
   async function restoreDraft() {
     const saved = await DB.getSetting('draft'); if (!saved) return;
     restoringDraft = true;
-    $('story-title').value = saved.title || ''; $('story-symbol').value = saved.symbol || 'bear'; $('story-written').value = saved.text || ''; $('story-transcript').value = saved.transcript || '';
+    $('story-title').value = saved.title || ''; $('story-symbol').value = 'book'; $('story-written').value = saved.text || ''; $('story-transcript').value = saved.transcript || '';
     wantedVoice = saved.voiceURI || ''; $('tts-rate').value = saved.rate || '.9';
     sourceMode = ['write','record','import'].includes(saved.sourceMode) ? saved.sourceMode : 'write';
     if (saved.audio?.blob instanceof Blob) setDraft(saved.audio.blob, saved.audio.duration || 0, saved.audio.name || 'Saved audio draft');
@@ -630,7 +630,7 @@
         const response = await fetch(url); if (!response.ok) throw new Error('Could not load ' + entry.file);
         let blob = await response.blob(); if (!blob.size || blob.size > C.MAX_AUDIO) throw new Error('Starter audio must be 1–100 MB.');
         if (!blob.type.startsWith('audio/')) blob = new Blob([blob], { type: /\.mp3$/i.test(entry.file) ? 'audio/mpeg' : /\.wav$/i.test(entry.file) ? 'audio/wav' : 'audio/' + entry.file.split('.').pop().toLowerCase() });
-        await DB.putStory({ id: entry.id, title: String(entry.title || entry.file).slice(0,100), symbol: Object.hasOwn(C.SYMBOLS,entry.symbol) ? entry.symbol : 'book', transcript: String(entry.transcript || '').slice(0,20000), duration: Number.isFinite(entry.duration) ? entry.duration : 0, blob, mime: blob.type, kind: 'audio', source: 'example', catalogId: entry.id, created: 0 });
+        await DB.putStory({ id: entry.id, title: String(entry.title || entry.file).slice(0,100), symbol: 'book', transcript: String(entry.transcript || '').slice(0,20000), duration: Number.isFinite(entry.duration) ? entry.duration : 0, blob, mime: blob.type, kind: 'audio', source: 'example', catalogId: entry.id, created: 0 });
         known.add(entry.id);
       } catch (error) { $('example-state').textContent = 'Some starter audio could not be saved. ' + error.message; }
     }

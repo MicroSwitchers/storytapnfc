@@ -1,8 +1,10 @@
 # StoryTouch — A little tap. A whole story.
 
-Version 1.3.1 · 29 October 2026
+Version 1.4.0 · 29 October 2026
 
 Extract the complete ZIP. **`index.html` is directly at its root**, beside the scripts, manifest and folders. There is no build step or API key. Deploy the extracted folder to HTTPS or use the local preview below. Open `README.html` for the web version of this guide.
+
+Every story uses the same simple book icon. The interface always uses dark mode; optional black child mode keeps the screen completely black.
 
 ## Three ways to add a story
 
@@ -14,7 +16,7 @@ Choose **Add a story**, then a large method button:
 
 The unfinished form saves its text and completed audio draft to this browser. An active recording cannot survive closing the page before you stop it. **Clear draft** removes the unfinished form. Drafts are separate from the saved library and are not exported in backups.
 
-Every story, including a starter, has **Rename / edit**. Change its name, picture, transcript, or a written story’s words/voice, then choose **Save details**. The same menu downloads audio/text or deletes the story and its local tag links.
+Every story, including a starter, has **Rename / edit**. Change its name, transcript, or a written story’s words/voice, then choose **Save details**. The same menu downloads audio/text or deletes the story and its local tag links.
 
 Device voice availability varies. Voices labelled **online** may need a connection and may use a platform speech service. Missing saved voices fall back to a matching local language or device default. For offline speech, install a suitable device voice; use a recording/MP3 when you need stored sound. [Speech synthesis reference](https://developer.mozilla.org/en-US/docs/Web/API/SpeechSynthesis).
 
@@ -33,7 +35,7 @@ A static host cannot automatically list a directory for the browser. The helper 
 
 Choose **Link tag** on a story card. The visual guide has three steps:
 
-1. **Story:** check the picture and name.
+1. **Story:** check the story name.
 2. **Tap tag:** choose **Link this tag**, then hold an NDEF NFC tag near the back of the phone. The phone illustration changes while listening. The app reads a code or same-app URL record, falling back to a serial number where provided.
 3. **Ready:** a green check names the linked story. Choose **Test the tag** and tap it again. The story plays and the guide confirms the test. Then use **Start child mode** at the top of the page.
 
@@ -61,7 +63,7 @@ Reloading an active child-mode tab restores child mode. If NFC permission is alr
 
 ## Persistent memory and backups
 
-Saved stories, audio, names, pictures, written words, voice/pace, links, starter removals and drafts use local browser storage. Preferences are saved too. The app upgrades the StoryTouch 1.0 database in place. Use the same site origin, browser and profile to keep that experience; do not clear storage to update.
+Saved stories, audio, names, written words, voice/pace, links, starter removals and drafts use local browser storage. Preferences are saved too. The app upgrades the StoryTouch 1.0 database in place. Use the same site origin, browser and profile to keep that experience; do not clear storage to update.
 
 Browser memory is not permanent cloud storage. Clearing site data, private browsing, device cleanup, or switching address/browser/profile/port can make stories unavailable. **Export backup** downloads saved text/audio, links, starter-removal choices and preferences as `.storytouch.json`. Keep it safe: it includes unencrypted personal recordings. **Ask browser to keep local storage** requests persistence where supported, but is not a backup.
 
@@ -75,7 +77,7 @@ Use **Install StoryTouch** when your browser offers its install prompt. Otherwis
 
 Test once with the server or internet unavailable: reopen the app, play saved audio and a bundled story, and check your tag links. Missing uncached pages show a recovery page with **Open your stories**. Written stories need an installed offline device voice. Installation alone does not prove offline readiness, and cached app files are not a backup of personal audio.
 
-**Check for updates** looks for a new release. Updates wait for you; they do not automatically reload child mode or a recording. When ready, return to adult controls, finish playback/recording/importing, then choose **Update app**. A pending draft and preferences are saved before activation. Close other StoryTouch app windows first so their recordings or playback cannot be interrupted. Stories and tag links stay in the same database. If updating from an older release without this control, close its app windows and reopen online once. [Service-worker update behavior](https://web.dev/learn/pwa/update).
+**Check for updates** looks for a new release. A complete new release becomes available even when other StoryTouch tabs are open. An untouched adult launch can refresh automatically after saving its draft. After interaction, or during child mode, playback, recording or importing, the current page keeps running. Finish the activity and choose **Update app**, or refresh/reopen to load the ready release. Drafts, preferences, stories and tag links stay saved; other app windows can stay open. When coming from version 1.3.1 or earlier, allow the download to finish online, then refresh once to show this release. Never clear site data to update. [Service-worker update behavior](https://web.dev/articles/service-worker-lifecycle).
 
 Where supported, headphones and the phone's media panel show the story title and provide Play, Pause, Stop and audio seeking. Written stories do not advertise a seek timeline. These controls do not make NFC work with the physical screen off; the existing NFC visibility restriction still applies. Phone safe-area padding accommodates system bars without disabling zoom or forcing an orientation.
 
@@ -87,7 +89,7 @@ The production repository is [MicroSwitchers/storytapnfc](https://github.com/Mic
 
 Push the complete app to `main`. The existing Pages deployment publishes the repository root. Keep `.nojekyll` so these already-built static files are served directly, including the offline setup guide. No build command or API key is needed. Wait for the Pages deployment to succeed before testing the new release. GitHub Pages does not apply Netlify's `_headers` file; the app's relative URLs, install manifest, service worker and local story storage work without it.
 
-Keep this address unchanged to retain browser storage and existing URL tags. Existing installed copies of older releases need their app windows closed and reopened online once to receive this release. Future updates can use **App & offline > Update app** after other StoryTouch windows are closed.
+Keep this address unchanged to retain browser storage and existing URL tags. A complete release activates in the background; refresh or reopen to load it. The adult Update app control saves a pending draft before refreshing.
 
 ## Deploy to Netlify
 
@@ -116,7 +118,7 @@ Child mode has large story buttons, Stop, optional codes and story text. Parent 
 - **Scratchy new recording:** watch for the “Too loud” warning and move the microphone farther away. Try leaving background noise reduction off, especially for music. Existing distorted recordings need to be recorded again; the app cannot restore missing sound.
 - **Save failed:** check free space/site-storage permissions. An error means the change was not safely saved.
 - **Netlify 404:** deploy the folder directly containing `index.html`.
-- **Old version still shown:** open App & offline and choose Check for updates. Apply a ready update after finishing playback and closing other app windows. Older releases need all their windows closed once. Keep local storage.
+- **Old version still shown:** connect, open App & offline and choose Check for updates. Wait for the download, then finish the current activity and refresh or choose Update app. Confirm version 1.4.0 in the footer. Keep site data.
 
 ## Included files and verification
 

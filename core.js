@@ -3,6 +3,7 @@
   'use strict';
   const MAX_AUDIO = 100 * 1024 * 1024;
   const SYMBOLS = { bear: '🧸', moon: '🌙', leaf: '🌿', star: '⭐', heart: '❤', book: '📖' };
+  const BOOK_ICON = '<svg class="book-icon" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M32 16C24 10 14 9 5 12v38c9-3 19-2 27 4 8-6 18-7 27-4V12c-9-3-19-2-27 4Z"/><path d="M32 16v38M13 22c4-1 8 0 12 2M13 31c4-1 8 0 12 2M39 24c4-2 8-3 12-2M39 33c4-2 8-3 12-2"/></svg>';
   // Kept only to resolve tag references in older version-1 backups.
   const DEMOS = [{ id: 'demo-hello' }, { id: 'demo-chimes' }, { id: 'demo-rain' }];
   function code(value) {
@@ -61,7 +62,7 @@
     }
     return data;
   }
-  const api = { MAX_AUDIO, SYMBOLS, DEMOS, code, uidKey, formatTime, escape, tagKeys, validateBackup };
+  const api = { MAX_AUDIO, SYMBOLS, BOOK_ICON, DEMOS, code, uidKey, formatTime, escape, tagKeys, validateBackup };
   root.StoryCore = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(typeof window === 'undefined' ? globalThis : window);

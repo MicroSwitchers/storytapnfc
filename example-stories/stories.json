@@ -9,7 +9,7 @@
     {
       "id": "starter-63b3f76d29aec88db463",
       "title": "Giraffe's New Friend",
-      "symbol": "leaf",
+      "symbol": "book",
       "transcript": "",
       "duration": 0,
       "file": "Giraffe's New Friend.mp3"
@@ -17,7 +17,7 @@
     {
       "id": "starter-c747a859f240b6752770",
       "title": "Music Box",
-      "symbol": "star",
+      "symbol": "book",
       "transcript": "",
       "duration": 0,
       "file": "Music Box.mp3"
@@ -25,7 +25,7 @@
     {
       "id": "starter-027ad080ad2984b71685",
       "title": "Snowy Day",
-      "symbol": "moon",
+      "symbol": "book",
       "transcript": "",
       "duration": 0,
       "file": "Snowy Day.mp3"
@@ -33,7 +33,7 @@
     {
       "id": "starter-db720b8e38d6b7adcc7f",
       "title": "Teddy Bear",
-      "symbol": "bear",
+      "symbol": "book",
       "transcript": "",
       "duration": 0,
       "file": "Teddy Bear.mp3"

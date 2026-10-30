@@ -29,7 +29,8 @@ class CatalogChecks(unittest.TestCase):
             root = Path(temp)
             folder = root / 'example-stories'
             (folder / 'nested').mkdir(parents=True)
-            (root / 'sw.js').write_text("const EXAMPLE_REV = 'old';", encoding='utf-8')
+            guard = 'const guard = "const EXAMPLE_REV = \'" + EXAMPLE_REV + "\';";'
+            (root / 'sw.js').write_text("const EXAMPLE_REV = 'old';\n" + guard, encoding='utf-8')
             for name in ['hello.mp3', 'chimes.wav', 'rain.wav']:
                 (folder / name).write_bytes(b'retired fixture')
             audio = folder / 'nested' / 'A Bell.wav'
@@ -43,6 +44,7 @@ class CatalogChecks(unittest.TestCase):
                 self.assertEqual(examples.prepare(), 1)
                 first = (folder / 'stories.json').read_text(encoding='utf-8')
                 revision = (root / 'sw.js').read_text(encoding='utf-8')
+                self.assertIn(guard, revision)
                 entry = json.loads(first)['stories'][0]
                 self.assertEqual(entry['transcript'], 'A gentle bell rings.')
                 self.assertAlmostEqual(entry['duration'], .01)

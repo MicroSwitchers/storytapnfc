@@ -1,7 +1,7 @@
 /* Bump VERSION whenever a release changes any packaged asset. */
 'use strict';
-const VERSION = 'storytouch-shell-v1.3.1-release';
-const EXAMPLE_REV = '1244f25844ff';
+const VERSION = 'storytouch-shell-v1.4.0-release';
+const EXAMPLE_REV = '278987fe704a';
 const CACHE = VERSION + '-' + EXAMPLE_REV + ':' + self.registration.scope;
 const READY = new URL('./.offline-ready', self.registration.scope).href;
 const SHELL = [
@@ -38,10 +38,10 @@ async function offlineStatus() {
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
     const existed = (await caches.keys()).includes(CACHE);
-    try { await populate(await caches.open(CACHE)); }
+    try { await populate(await caches.open(CACHE)); await self.skipWaiting(); }
     catch (error) { if (!existed) await caches.delete(CACHE); throw error; }
   })());
-  // Updates wait for adult consent; an interrupted recording must never trigger an automatic reload.
+  // Activate the complete release even with old tabs open. Never navigate those tabs: their media and recordings keep running.
 });
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {

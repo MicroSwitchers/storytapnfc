@@ -50,7 +50,7 @@ test('installing a release bypasses stale HTTP-cached scripts, styles and audio'
 test('failed initial installation discards only its partial new cache', async () => {
   const f = fixture(); await f.caches.open('some-other-app'); f.resources.delete(f.scope + 'example-stories/My%20Bell.mp3');
   await assert.rejects(f.install(), /Download failed/);
-  assert.deepEqual(await f.caches.keys(), ['some-other-app']);
+  assert.deepEqual(await f.caches.keys(), ['some-other-app']); assert.equal(f.counts().skipped, 0);
 });
 test('offline root, query links and installed launch URLs return the cached app', async () => {
   const f = fixture(); await f.install(); f.offline(true);
@@ -95,10 +95,10 @@ test('an update cannot take over another open StoryTouch window', async () => {
   const f = fixture(); f.self.clients.matchAll = async () => [{ id: 'app', url: f.scope + 'index.html' }, { id: 'recording', url: f.scope }];
   const result = await f.message('APPLY_UPDATE'); assert.equal(result.ok, false); assert.equal(f.counts().skipped, 0);
 });
-test('only a deliberate message from the single app window can apply an update', async () => {
-  const f = fixture(); await f.install(); assert.equal(f.counts().skipped, 0);
+test('a complete release activates without forcing navigation; legacy update messages remain supported', async () => {
+  const f = fixture(); await f.install(); assert.equal(f.counts().skipped, 1);
   assert.equal((await f.message('APPLY_UPDATE', { id: 'other', url: 'https://elsewhere.test/index.html' })).ok, false);
-  assert.equal((await f.message('APPLY_UPDATE')).ok, true); assert.equal(f.counts().skipped, 1);
+  assert.equal((await f.message('APPLY_UPDATE')).ok, true); assert.equal(f.counts().skipped, 2);
 });
 test('cache cleanup preserves other apps and other StoryTouch scopes', async () => {
   const f = fixture(); await f.install();

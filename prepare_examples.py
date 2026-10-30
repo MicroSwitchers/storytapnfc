@@ -8,10 +8,10 @@ EXTENSIONS = {'.mp3', '.wav', '.m4a', '.ogg', '.aac', '.flac', '.webm'}
 RETIRED_IDS = ['demo-hello', 'demo-chimes', 'demo-rain']
 RETIRED_FILES = {'hello.mp3', 'chimes.wav', 'rain.wav'}
 DEFAULTS = {
-    "Giraffe's New Friend.mp3": ("Giraffe's New Friend", 'leaf'),
-    'Music Box.mp3': ('Music Box', 'star'),
-    'Snowy Day.mp3': ('Snowy Day', 'moon'),
-    'Teddy Bear.mp3': ('Teddy Bear', 'bear')
+    "Giraffe's New Friend.mp3": ("Giraffe's New Friend", 'book'),
+    'Music Box.mp3': ('Music Box', 'book'),
+    'Snowy Day.mp3': ('Snowy Day', 'book'),
+    'Teddy Bear.mp3': ('Teddy Bear', 'book')
 }
 
 def prepare():
@@ -41,7 +41,7 @@ def prepare():
     sw = ROOT/'sw.js'
     if sw.exists():
         script=sw.read_text(encoding='utf-8')
-        script=re.sub(r"const EXAMPLE_REV = '[^']*';", "const EXAMPLE_REV = '"+digest.hexdigest()[:12]+"';",script)
+        script=re.sub(r"^const EXAMPLE_REV = '[^']*';", "const EXAMPLE_REV = '"+digest.hexdigest()[:12]+"';",script,flags=re.MULTILINE)
         sw.write_text(script,encoding='utf-8')
     return len(entries)
 

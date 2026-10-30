@@ -1,4 +1,4 @@
-/* Installation, verified offline files and deliberate updates. No user-library deletion. */
+/* Installation, verified offline files and activity-aware updates. No user-library deletion. */
 (function (root) {
   'use strict';
   const standalone = () => root.navigator.standalone === true || !!root.matchMedia?.('(display-mode: standalone)').matches || !!root.matchMedia?.('(display-mode: fullscreen)').matches;
@@ -19,7 +19,11 @@
     });
   }
   class Runtime {
-    constructor({ change, canUpdate = () => true, beforeUpdate = async () => {}, reload = () => root.location.reload() }) {
+    constructor({ version = '', change, canUpdate = () => true, beforeUpdate = async () => {}, reload = () => root.location.reload() }) {
+      this.version = version; this.interacted = false; this.activeUpdate = false;
+      const interaction = () => { this.interacted = true; };
+      root.addEventListener('pointerdown', interaction, { capture: true, passive: true });
+      root.addEventListener('keydown', interaction, { capture: true });
       this.change = change; this.canUpdate = canUpdate; this.beforeUpdate = beforeUpdate; this.reload = reload;
       this.state = { offline: 'checking', online: root.navigator.onLine !== false, installed: standalone(), installable: false,
         update: 'none', updateMessage: '', busy: false, help: installHelp(), message: 'Preparing offline stories…', audioCount: 0 };
@@ -47,8 +51,9 @@
         this.listening = true;
         root.addEventListener('online', () => { this.set({ online: true }); this.verify(); });
         root.addEventListener('offline', () => this.set({ online: false }));
+        root.addEventListener('focus', () => { if (this.state.online) this.registration?.update().catch(() => {}); });
         root.navigator.serviceWorker.addEventListener('controllerchange', () => {
-          if (this.state.update === 'applying') { if (!this.reloading) { this.reloading = true; this.reload(); } }
+          if (this.state.update === 'applying') this.reloadOnce();
           else this.verify();
         });
       }
@@ -71,12 +76,29 @@
         await this.verify();
       } catch (error) { this.set({ offline: 'error', message: error.message || 'Offline setup could not finish. Reconnect and try again.' }); }
     }
+    reloadOnce() { if (!this.reloading) { this.reloading = true; this.reload(); } }
+    newerVersion(value) {
+      const parse = v => /-v(\d+)\.(\d+)\.(\d+)-/.exec(v || '')?.slice(1).map(Number);
+      const current = parse(this.version), active = parse(value);
+      if (!current || !active) return false;
+      for (let i = 0; i < 3; i++) { if (current[i] !== active[i]) return active[i] > current[i]; }
+      return false;
+    }
     async verify() {
       try {
         const worker = this.registration?.active || root.navigator.serviceWorker?.controller;
         const status = await request(worker, 'OFFLINE_STATUS');
         this.set({ offline: status.ready ? 'ready' : 'incomplete', audioCount: status.audioCount || 0,
           message: status.ready ? 'The app and all bundled stories are saved for offline use.' : 'Some offline files are missing. Connect and choose Download offline files.' });
+        if (status.ready && this.newerVersion(status.version)) {
+          this.activeUpdate = true;
+          if (this.state.update !== 'applying') {
+            this.set({ update: 'waiting', updateMessage: 'A new version is ready. Your stories and tag links stay saved.' });
+            // Refresh an untouched adult launch automatically. Once someone starts using the app,
+            // leave the current page running until they choose Update app or reopen it.
+            if (!this.interacted && !this.state.busy && this.canUpdate()) await this.applyUpdate();
+          }
+        }
         return status;
       } catch (error) { this.set({ offline: 'error', message: error.message }); return null; }
     }
@@ -100,23 +122,24 @@
       try {
         await this.registration.update();
         if (this.registration.waiting) this.set({ update: 'waiting', message: 'An update is ready. Apply it when you have finished listening or recording.' });
-        else this.set({ message: this.registration.installing ? 'An update is downloading. Your stories stay available.' : 'You’re using the latest available app version.' });
+        else if (!this.activeUpdate) this.set({ message: this.registration.installing ? 'An update is downloading. Your stories stay available.' : 'You’re using the latest available app version.' });
       } catch (_) { this.set({ message: 'Could not check for updates. Your saved stories are still here.' }); }
-      finally { this.set({ busy: false }); }
+      finally { this.set({ busy: false }); await this.verify(); }
     }
     async applyUpdate() {
-      if (this.state.update === 'applying' || !this.registration?.waiting) return;
+      if (this.state.update === 'applying' || this.applyingUpdate || (!this.activeUpdate && !this.registration?.waiting)) return;
       if (!this.canUpdate()) { const message = 'Return to adult controls and finish recording, importing or playing before updating.'; this.set({ message, updateMessage: message }); return; }
-      this.set({ busy: true });
+      this.applyingUpdate = true; this.set({ busy: true });
       try {
         await this.beforeUpdate();
         if (!this.canUpdate()) throw new Error('Finish the current activity before updating.');
         this.set({ update: 'applying', updateMessage: 'Your draft is saved. Opening the updated app…', message: 'Your draft is saved. Opening the updated app…' });
+        if (this.activeUpdate) { this.reloadOnce(); return; }
         const result = await request(this.registration.waiting, 'APPLY_UPDATE');
         if (!result.ok) throw new Error(result.reason || result.error || 'The update could not be applied.');
         // Reload only on controllerchange, once the new worker is actually in control.
       } catch (error) { this.set({ update: 'waiting', message: error.message, updateMessage: error.message }); }
-      finally { if (this.state.update !== 'applying') this.set({ busy: false }); }
+      finally { this.applyingUpdate = false; if (this.state.update !== 'applying') this.set({ busy: false }); }
     }
   }
   root.StoryPWA = { Runtime, request, standalone, installHelp };
