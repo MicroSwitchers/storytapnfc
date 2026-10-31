@@ -27,7 +27,7 @@ class PackageChecks(unittest.TestCase):
         manifest = json.loads((ROOT / 'manifest.webmanifest').read_text(encoding='utf-8'))
         self.assertIn('maskable', {icon['purpose'] for icon in manifest['icons']})
         for icon in manifest['icons']:
-            data = (ROOT / icon['src']).read_bytes()
+            data = (ROOT / unquote(urlsplit(icon['src']).path)).read_bytes()
             self.assertEqual(data[:8], b'\x89PNG\r\n\x1a\n')
             width, height = struct.unpack('>II', data[16:24])
             self.assertEqual(f'{width}x{height}', icon['sizes'])
@@ -40,7 +40,7 @@ class PackageChecks(unittest.TestCase):
         files = re.findall(r"'([^']+)'", shell)
         self.assertTrue({'./pwa.js', './media.js', './offline.html', './manifest.webmanifest'}.issubset(files))
         for file in files:
-            self.assertTrue((ROOT / file).exists(), file)
+            self.assertTrue((ROOT / unquote(urlsplit(file).path)).exists(), file)
 
     def test_app_has_unique_ids_external_scripts_and_allows_zoom(self):
         class Inspect(HTMLParser):

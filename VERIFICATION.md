@@ -1,4 +1,4 @@
-# StoryTouch 2.0.0 verification
+# StoryTouch 2.0.1 verification
 
 ## Release checks
 
@@ -10,6 +10,10 @@
 Coverage includes recording final chunks and cleanup; tag decoding and persistent reading; dark-screen defaults; unsupported/denied NFC returning to adult setup; tag-only child markup; now-playing content; optional Stop; two-to-five-second holds and three-to-five-tap exits; gesture cancellation/reset; touch pause and same-object resume; fullscreen fallback/ownership; story-picture backup validation; existing-library compatibility; offline shell/audio integrity, ranges and repair; update deferral and draft preservation; manifest identity/icons; and unique HTML IDs/local asset references.
 
 All release JavaScript/Python syntax and checksums are checked before publishing. GitHub tree blob hashes are compared against the local release files before moving main.
+
+## Icon refinement
+
+The app logo and inline book icons share symmetric cubic geometry with rounded ends and consistent spacing. The SVG and all four PNG exports were regenerated; the actual rendered PNGs and outlines were visually inspected at multiple sizes. Versioned icon URLs are cached alongside the stable asset URLs to refresh browser icon caches while preserving offline use.
 
 ## Browser verification limits
 

@@ -5,7 +5,7 @@
   const MAX_IMAGE = 5 * 1024 * 1024;
   const IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
   const SYMBOLS = { bear: '🧸', moon: '🌙', leaf: '🌿', star: '⭐', heart: '❤', book: '📖' };
-  const BOOK_ICON = '<svg class="book-icon" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M32 16C24 10 14 9 5 12v38c9-3 19-2 27 4 8-6 18-7 27-4V12c-9-3-19-2-27 4Z"/><path d="M32 16v38M13 22c4-1 8 0 12 2M13 31c4-1 8 0 12 2M39 24c4-2 8-3 12-2M39 33c4-2 8-3 12-2"/></svg>';
+  const BOOK_ICON = "<svg class=\"book-icon\" viewBox=\"0 0 48 48\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" focusable=\"false\"><path d=\"M24 12 C19.2 8.3 12.7 7.4 7.3 9.2 C6.5 9.5 6 10.2 6 11.1 V36.5 C6 37.5 7.1 38.2 8.1 37.9 C13.6 36.2 19.5 37.3 24 40 C28.5 37.3 34.4 36.2 39.9 37.9 C40.9 38.2 42 37.5 42 36.5 V11.1 C42 10.2 41.5 9.5 40.7 9.2 C35.3 7.4 28.8 8.3 24 12 Z\"/><path d=\"M24 12 V40\"/><path d=\"M11.5 17 C14.5 16.6 17.7 17.2 20 18.4 M11.5 23.5 C14.5 23.1 17.7 23.7 20 24.9 M28 18.4 C30.3 17.2 33.5 16.6 36.5 17 M28 24.9 C30.3 23.7 33.5 23.1 36.5 23.5\"/></svg>";
   // Kept only to resolve tag references in older version-1 backups.
   const DEMOS = [{ id: 'demo-hello' }, { id: 'demo-chimes' }, { id: 'demo-rain' }];
   function code(value) {

@@ -1,6 +1,6 @@
 /* Bump VERSION whenever a release changes any packaged asset. */
 'use strict';
-const VERSION = 'storytouch-shell-v2.0.0-release';
+const VERSION = 'storytouch-shell-v2.0.1-release';
 const EXAMPLE_REV = '278987fe704a';
 const CACHE = VERSION + '-' + EXAMPLE_REV + ':' + self.registration.scope;
 const READY = new URL('./.offline-ready', self.registration.scope).href;
@@ -8,7 +8,9 @@ const SHELL = [
   './', './index.html', './styles.css', './core.js', './storage.js', './speech.js', './recording.js', './child-mode.js', './pwa.js', './media.js', './app.js',
   './offline.html', './manifest.webmanifest', './README.html', './README.md', './assets/icons/storytouch.svg',
   './assets/icons/icon-192.png', './assets/icons/icon-512.png', './assets/icons/maskable-512.png',
-  './assets/icons/apple-touch-icon.png', './example-stories/stories.json'
+  './assets/icons/apple-touch-icon.png', './example-stories/stories.json',
+  './assets/icons/storytouch.svg?v=2.0.1', './assets/icons/icon-192.png?v=2.0.1', './assets/icons/icon-512.png?v=2.0.1',
+  './assets/icons/maskable-512.png?v=2.0.1', './assets/icons/apple-touch-icon.png?v=2.0.1'
 ];
 function exampleFiles(catalog) {
   if (catalog.version !== 1 || !Array.isArray(catalog.stories) || catalog.stories.length > 2000) throw new Error('Invalid starter catalog');
