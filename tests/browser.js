@@ -9,7 +9,7 @@ async function until(check, label) {
 function pass(message) { output.textContent += 'PASS ' + message + '\n'; }
 async function load() {
   await new Promise(resolve => { frame.onload = resolve; frame.src = '../index.html?browser-check=' + Date.now(); });
-  await until(() => frame.contentDocument.querySelectorAll('#example-grid .story-card').length === 4, 'four starter stories');
+  await until(() => frame.contentDocument.querySelectorAll('#story-grid .story-card').length === 4, 'four starter stories');
 }
 async function putFixtures() {
   const db = await new Promise((resolve, reject) => {
@@ -62,7 +62,7 @@ document.getElementById('run').addEventListener('click', async () => {
     await load(); w = frame.contentWindow; d = frame.contentDocument;
     assert((await w.StoryStore.all('stories')).find(s => s.id === chosen.id).title === 'A renamed starter', 'Renamed story overwritten');
     pass('Starter rename survives reload and catalog sync');
-    d.getElementById('tab-add').click(); d.getElementById('source-record').click();
+    d.getElementById('library-add').click(); d.getElementById('source-record').click();
     const destination = context.createMediaStreamDestination();
     oscillator = context.createOscillator(); const gain = context.createGain(); gain.gain.value = .2;
     oscillator.frequency.value = 440; oscillator.connect(gain); gain.connect(destination); oscillator.start();
@@ -98,7 +98,7 @@ document.getElementById('run').addEventListener('click', async () => {
     await until(() => d.getElementById('story-audio').currentTime > 0, 'saved recording playback');
     d.getElementById('player-stop').click(); pass('Recording saves, survives reload, and plays');
     // Permission rejection must recover the controls and retain the earlier draft/library.
-    d.getElementById('tab-add').click(); d.getElementById('source-record').click();
+    d.getElementById('library-add').click(); d.getElementById('source-record').click();
     Object.defineProperty(w.navigator.mediaDevices, 'getUserMedia', { configurable: true, value: async () => { throw new DOMException('Test denial', 'NotAllowedError'); } });
     d.getElementById('record-start').click();
     await until(() => d.getElementById('app-error').textContent.includes('Microphone access was not allowed'), 'microphone denial');

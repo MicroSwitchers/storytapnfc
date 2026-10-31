@@ -4,7 +4,11 @@
   function preferences(saved = {}) {
     return { spoken: saved?.spoken === true, sounds: saved?.sounds !== false,
       playbackRate: [.75,.9,1,1.25,1.5].includes(saved?.playbackRate) ? saved.playbackRate : 1,
-      childScreen: saved?.childScreen === 'black' ? 'black' : 'stories',
+      childScreen: saved?.childScreen === 'now-playing' ? 'now-playing' : 'black',
+      exitMethod: saved?.exitMethod === 'taps' ? 'taps' : 'hold',
+      exitHoldSeconds: [2,3,4,5].includes(saved?.exitHoldSeconds) ? saved.exitHoldSeconds : 3,
+      exitTapCount: [3,4,5].includes(saved?.exitTapCount) ? saved.exitTapCount : 4,
+      showStop: saved?.showStop === true,
       childLock: true, keepAwake: saved?.keepAwake !== false, touchToPause: saved?.touchToPause !== false,
       tapToPause: saved?.tapToPause === true };
   }
@@ -40,7 +44,7 @@
         pause();
         // The parent hold and drawer handle still work. Other controls must not turn
         // this same touch into a resume, restart, or a different story after pausing.
-        if (event.target.closest?.('#child-exit, #player-drawer-toggle')) return;
+        if (event.target.closest?.('#child-exit, #player-drawer-toggle, #child-stop-audio')) return;
         this.blocked = { time: root.performance.now() };
         event.preventDefault();
       }, { capture: true, passive: false });
@@ -53,11 +57,11 @@
     }
   }
   class HoldExit {
-    constructor(button, { required, exit, progress }) {
-      this.button = button; this.required = required; this.exit = exit; this.progress = progress;
+    constructor(button, { required, exit, progress, settings = () => ({ method: 'hold', seconds: 3, taps: 4 }) }) {
+      this.button = button; this.required = required; this.exit = exit; this.progress = progress; this.settings = settings;
       const pointerEnd = e => { if (this.active?.kind === 'pointer' && e.pointerId === this.active.id) this.end(e.type === 'pointerup'); };
       button.addEventListener('pointerdown', e => {
-        if (!this.required() || e.button !== 0 || e.isPrimary === false) return;
+        if (!this.required() || this.settings().method === 'taps' || e.button !== 0 || e.isPrimary === false) return;
         e.preventDefault(); this.start('pointer', e.pointerId);
         try { button.setPointerCapture(e.pointerId); } catch (_) {}
       });
@@ -67,30 +71,42 @@
         if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) this.cancel();
       });
       ['pointerup','pointercancel','lostpointercapture'].forEach(name => button.addEventListener(name, pointerEnd));
-      button.addEventListener('pointerleave', () => this.cancel());
+      button.addEventListener('pointerleave', () => { if (this.active?.kind === 'pointer') this.cancel(); });
       button.addEventListener('keydown', e => {
         if (!this.required() || ![' ', 'Enter'].includes(e.key)) return;
+        if (this.settings().method === 'taps') { if (e.repeat) e.preventDefault(); return; }
         e.preventDefault(); if (!e.repeat) this.start('key', e.key);
       });
       button.addEventListener('keyup', e => { if (this.active?.kind === 'key' && this.active.id === e.key) { e.preventDefault(); this.end(true); } });
       button.addEventListener('blur', () => this.cancel());
       button.addEventListener('contextmenu', e => e.preventDefault());
-      button.addEventListener('click', e => { e.preventDefault(); if (this.required()) this.progress(0); else this.exit(); });
+      button.addEventListener('click', e => {
+        e.preventDefault();
+        if (!this.required()) { this.exit(); return; }
+        if (this.settings().method !== 'taps') { this.progress(0); return; }
+        const now = root.performance.now(), taps = this.settings().taps;
+        if (!this.active || this.active.kind !== 'taps' || now - this.active.last > 1000) this.active = { kind: 'taps', count: 0, last: now };
+        this.active.count++; this.active.last = now;
+        if (this.active.count >= taps) { this.cancel(); this.exit(); return; }
+        this.progress(taps - this.active.count, 'taps');
+        if (!this.timer) this.timer = root.setInterval(() => { if (this.active && root.performance.now() - this.active.last > 1000) this.cancel(); }, 100);
+      });
       root.addEventListener('blur', () => this.cancel());
     }
     start(kind, id) {
       if (this.active) return;
       this.active = { kind, id, started: root.performance.now() };
-      this.progress(3);
+      this.duration = Math.min(5, Math.max(2, this.settings().seconds || 3)) * 1000;
+      this.progress(this.duration / 1000, 'hold');
       this.timer = root.setInterval(() => {
         if (!this.active) return;
-        const remaining = 3000 - (root.performance.now() - this.active.started);
+        const remaining = this.duration - (root.performance.now() - this.active.started);
         if (remaining <= 0) { this.cancel(); this.exit(); }
-        else this.progress(Math.ceil(remaining / 1000));
+        else this.progress(Math.ceil(remaining / 1000), 'hold');
       }, 100);
     }
     end(complete) {
-      const finished = complete && this.active && root.performance.now() - this.active.started >= 3000;
+      const finished = complete && this.active && root.performance.now() - this.active.started >= this.duration;
       this.cancel(); if (finished) this.exit();
     }
     cancel() { root.clearInterval(this.timer); this.timer = null; this.active = null; this.progress(0); }

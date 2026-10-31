@@ -142,20 +142,14 @@ test('black child mode hides story controls and always locks exit, even with the
   await f.root.hooks.setChild(false); assert.equal(f.root.hooks.state().child, true);
   await f.root.hooks.setChild(false, true); assert.equal(f.element('player').inert, false);
 });
-test('unsupported NFC opens child mode with story buttons even when black screen is selected', async () => {
-  const f = fixture(); f.root.hooks.configure({ childScreen: 'black' }); f.root.NDEFReader = undefined;
-  await f.root.hooks.setChild(true);
-  assert.equal(f.root.hooks.state().child, true); assert.equal(f.root.hooks.state().blackChild, false);
-  assert.equal(f.element('child-content').hidden, false); assert.match(f.element('child-status').textContent, /cannot read NFC/);
-  assert.equal(f.root.hooks.state().options.childScreen, 'black', 'fallback must preserve the adult preference');
+test('unsupported NFC stays in adult mode without exposing any child story picker', async () => {
+  const f = fixture(); f.root.NDEFReader = undefined; await f.root.hooks.setChild(true);
+  assert.equal(f.root.hooks.state().child, false); assert.match(f.element('app-error').textContent, /Android phone/);
 });
-test('NFC permission denial leaves child mode open with visible fallback instructions', async () => {
-  const f = fixture(); f.root.hooks.configure({ childScreen: 'black' });
-  f.root.NDEFReader = class { async scan() { throw { name: 'NotAllowedError' }; } };
-  await f.root.hooks.setChild(true);
-  assert.equal(f.root.hooks.state().child, true); assert.equal(f.root.hooks.state().blackChild, false);
-  assert.equal(f.element('child-content').hidden, false); assert.equal(f.element('child-scan').hidden, false);
-  assert.match(f.element('child-status').textContent, /play a story below/);
+test('NFC denial returns to adult mode and clears the listening session', async () => {
+  const f = fixture(); f.root.NDEFReader = class { async scan() { throw { name: 'NotAllowedError' }; } };
+  await f.root.hooks.setChild(true); assert.equal(f.root.hooks.state().child, false);
+  assert.equal(f.root.hooks.state().nfcSession, null); assert.match(f.element('app-error').textContent, /Allow NFC/);
 });
 test('the Start control waits for initialization and its actual click handler opens child mode', async () => {
   const f = fixture(); f.root.hooks.setInitialized(false);
@@ -238,10 +232,12 @@ test('the installed Add story shortcut opens its intended parent panel', async (
   const f = fixture(); f.root.location.hash = '#view=add'; await f.root.hooks.handleHash();
   assert.equal(f.element('panel-add').hidden, false); assert.equal(f.element('panel-library').hidden, true);
 });
-test('the child shortcut respects permissions and a parent shortcut cannot bypass the exit lock', async () => {
+test('a cold child shortcut asks for a deliberate start, and parent URLs cannot bypass an active lock', async () => {
   const f = fixture(); f.root.location.hash = '#mode=child'; await f.root.hooks.handleHash();
-  assert.equal(f.root.hooks.state().child, true); assert.equal(f.readers.length, 0, 'a cold shortcut must not silently request NFC permission');
-  f.root.location.hash = '#view=add'; await f.root.hooks.handleHash(); assert.equal(f.root.hooks.state().child, true);
+  assert.equal(f.root.hooks.state().child, false); assert.equal(f.readers.length, 0);
+  f.root.navigator.permissions = { async query() { return { state: 'granted' }; } }; await f.root.hooks.handleHash();
+  assert.equal(f.root.hooks.state().child, true); f.root.location.hash = '#view=add'; await f.root.hooks.handleHash();
+  assert.equal(f.root.hooks.state().child, true);
 });
 test('app updates wait for folder imports, backup downloads and preview playback', () => {
   const f = fixture(); assert.equal(f.root.hooks.canUpdate(), true);
@@ -280,4 +276,27 @@ test('child mode suppresses long-press menus while adult controls and code input
   f.documentEvents.get('contextmenu')(menu(false)); assert.equal(blocked, 0);
   await f.root.hooks.setChild(true); f.documentEvents.get('contextmenu')(menu(false)); assert.equal(blocked, 1);
   f.documentEvents.get('contextmenu')(menu(true)); assert.equal(blocked, 1);
+});
+
+test('now-playing mode shows only the tagged story and its associated text and image', async () => {
+  const row = { ...audioRows()[0], transcript: 'A bell rings softly.', image: new Blob(['picture'], { type: 'image/png' }) };
+  const f = fixture([row]); f.root.hooks.configure({ childScreen: 'now-playing' }); await f.root.hooks.setChild(true);
+  assert.equal(f.element('child-idle').hidden, false); await f.root.hooks.playTagStory('bell', 'code:BELL');
+  assert.equal(f.element('child-idle').hidden, true); assert.equal(f.element('child-story-title').textContent, 'Bell song');
+  assert.equal(f.element('child-story-text').textContent, 'A bell rings softly.'); assert.match(f.element('child-art').innerHTML, /<img/);
+  assert.equal(f.element('player-drawer-body').hidden, false);
+});
+test('optional red Stop resets media without stopping NFC or leaving dark mode', async () => {
+  const f = fixture(audioRows()); f.root.hooks.configure({ showStop: true }); await f.root.hooks.setChild(true);
+  assert.equal(f.element('child-stop-audio').hidden, false); await f.root.hooks.playTagStory('bell', 'code:BELL');
+  f.element('story-audio').currentTime = 8; await f.element('child-stop-audio').emit('click');
+  assert.equal(f.element('story-audio').paused, true); assert.equal(f.element('story-audio').currentTime, 0);
+  assert.equal(f.readers[0].signal.aborted, false); assert.equal(f.root.hooks.state().blackChild, true);
+});
+test('a tag resumes a screen-paused story at the same position even when repeat-tag pause is off', async () => {
+  const f = fixture(audioRows()); await f.root.hooks.setChild(true); await f.root.hooks.playTagStory('bell', 'code:BELL');
+  f.element('story-audio').currentTime = 12;
+  f.documentEvents.get('pointerdown')({ button: 0, target: { closest() { return null; } }, preventDefault() {} });
+  await f.root.hooks.playTagStory('bell', 'code:BELL'); assert.equal(f.element('story-audio').paused, false);
+  assert.equal(f.element('story-audio').currentTime, 12);
 });

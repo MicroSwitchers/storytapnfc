@@ -2,6 +2,8 @@
 (function (root) {
   'use strict';
   const MAX_AUDIO = 100 * 1024 * 1024;
+  const MAX_IMAGE = 5 * 1024 * 1024;
+  const IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
   const SYMBOLS = { bear: '🧸', moon: '🌙', leaf: '🌿', star: '⭐', heart: '❤', book: '📖' };
   const BOOK_ICON = '<svg class="book-icon" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M32 16C24 10 14 9 5 12v38c9-3 19-2 27 4 8-6 18-7 27-4V12c-9-3-19-2-27 4Z"/><path d="M32 16v38M13 22c4-1 8 0 12 2M13 31c4-1 8 0 12 2M39 24c4-2 8-3 12-2M39 33c4-2 8-3 12-2"/></svg>';
   // Kept only to resolve tag references in older version-1 backups.
@@ -44,6 +46,7 @@
     for (const s of data.stories) {
       if (!s || typeof s.id !== 'string' || !/^[a-zA-Z0-9_-]{1,100}$/.test(s.id) || (data.version === 1 && s.id.startsWith('demo-')) || ids.has(s.id)) throw new Error('The backup has an invalid or duplicate story ID.');
       ids.add(s.id);
+      if (s.image !== undefined && (!s.image || !IMAGE_MIMES.includes(s.image.mime) || typeof s.image.data !== 'string' || !s.image.data || s.image.data.length > Math.ceil(MAX_IMAGE / 3) * 4 || s.image.data.length % 4 || !/^[A-Za-z0-9+/]*={0,2}$/.test(s.image.data))) throw new Error('The backup has an invalid story picture.');
       if (typeof s.title !== 'string' || !s.title.trim() || s.title.length > 100 || !Object.hasOwn(SYMBOLS, s.symbol) || typeof s.transcript !== 'string' || s.transcript.length > 20000) throw new Error('The backup contains invalid story details.');
       if (data.version === 2 && !['audio','text'].includes(s.kind)) throw new Error('The backup has an invalid story type.');
       if (s.kind === 'text') {
@@ -62,7 +65,7 @@
     }
     return data;
   }
-  const api = { MAX_AUDIO, SYMBOLS, BOOK_ICON, DEMOS, code, uidKey, formatTime, escape, tagKeys, validateBackup };
+  const api = { MAX_AUDIO, MAX_IMAGE, IMAGE_MIMES, SYMBOLS, BOOK_ICON, DEMOS, code, uidKey, formatTime, escape, tagKeys, validateBackup };
   root.StoryCore = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(typeof window === 'undefined' ? globalThis : window);

@@ -1,29 +1,26 @@
-# StoryTouch 1.5.0 verification
+# StoryTouch 2.0.0 verification
 
-30 October 2026. The release uses the existing MicroSwitchers/storytapnfc main-branch GitHub Pages pipeline.
+## Release checks
 
-## Automated checks
+98 Node tests and 6 Python tests passed (104 total).
 
-88 Node checks and 6 Python checks passed (94 total).
-
-    node --test tests/app.test.cjs tests/recording.test.cjs tests/child-mode.test.cjs tests/pwa.test.cjs tests/media.test.cjs tests/sw.test.cjs
+    node --test tests/app.test.cjs tests/recording.test.cjs tests/child-mode.test.cjs tests/pwa.test.cjs tests/media.test.cjs tests/sw.test.cjs tests/story-picture.test.cjs
     python -B -m unittest discover -s tests -p "test_*.py"
 
-New coverage includes forced hold-only exits for legacy unlocked preferences; fullscreen requests with hidden navigation UI; denied/unsupported/non-gesture fallback; late fullscreen grants after leaving; fullscreen ownership; default-on screen-touch pause; opt-out and adult-mode isolation; both audio and written-story pause; preserving NFC while pausing; suppression of the same gesture's media click; exit/drawer exceptions; pointer cancellation and keyboard activation; drawer hiding/inert state; and scoped long-press menu suppression. Existing recording, NFC, backup, speech, offline caching/ranges, update persistence, install identity and media-session checks remain passing.
+Coverage includes recording final chunks and cleanup; tag decoding and persistent reading; dark-screen defaults; unsupported/denied NFC returning to adult setup; tag-only child markup; now-playing content; optional Stop; two-to-five-second holds and three-to-five-tap exits; gesture cancellation/reset; touch pause and same-object resume; fullscreen fallback/ownership; story-picture backup validation; existing-library compatibility; offline shell/audio integrity, ranges and repair; update deferral and draft preservation; manifest identity/icons; and unique HTML IDs/local asset references.
 
-## Browser checks
+All release JavaScript/Python syntax and checksums are checked before publishing. GitHub tree blob hashes are compared against the local release files before moving main.
 
-25 groups passed in actual desktop Chrome on an isolated localhost test origin:
+## Browser verification limits
 
-- Child-mode fixture: 12 groups. Single Start and unsupported NFC; denied NFC fallback; pure-black view with only the held exit and inert hidden controls; persistent simulated NFC and repeat-tag behavior; black-screen touch pause without stopping NFC; incomplete-hold rejection; three-second exit/reader cleanup; drawer open/tuck/focus/playback; suppression of the pause touch's restart; child drawer fit at 320/390/768/1200px; mandatory hold in story-button mode; persisted touch-pause opt-out.
-- Actual Fullscreen API: 1 group, started through a native browser click. Chrome's browser controls disappeared. Leaving fullscreen did not unlock child mode, and the three-second parent hold remained required.
-- Parent mobile layout: 4 groups covering all panels at 320/390/768/1200px, without horizontal overflow and with a primary Start target at least 44 by 44 pixels.
-- PWA fixture: 8 groups. Complete shell and all four MP3s; deliberate cache damage/repair; real stored MP3 playback and native metadata; saved audio/link/draft; full app reload with the local server stopped; stored audio playback without that server; bundled MP3 ranges; offline recovery navigation.
+The 2.0 redesign has not completed interactive visual/browser verification. The previous turn’s controller could not determine the browser URL confidently and stopped. The user subsequently explicitly requested deployment. This report does not carry forward the 1.5 release’s browser-pass count as a 2.0 result.
 
-The child suite simulates NFC and audio events, while the PWA suite plays real stored MP3 audio. The fullscreen check uses the real browser API and user activation, not a fullscreen mock. The network adapter was not disabled; the offline stage stopped the loopback HTTP server. Fixtures only add test data to localhost storage and do not clear a family library. Temporary preview servers and owned test tabs are stopped after checking.
+Updated isolated-localhost fixtures are included for the simplified add/link/listen flow, picture/audio backup and restore, dark and now-playing views, optional red Stop, hold/tap exits, fullscreen, responsive layout and real offline MP3 playback. They are not presented as passed in this release.
 
-## Deployment and limits
+After publishing, deployment completion and public HTTP release assets are verified. This confirms the bytes served by GitHub Pages, rather than a simulated deployment or a claim about every already-open browser tab.
 
-Manifest identity, scope, start URL, origin and IndexedDB schema stay unchanged. The manifest requests fullscreen with a standalone fallback. Child mode also requests fullscreen on entry and retains its hold lock after the browser exits fullscreen. Updates save a pending draft and defer page reload during active child mode, recording, playback or import. The service worker activates complete releases without closing other tabs.
+## Preserved data and limitations
 
-A PWA cannot disable Home, system navigation gestures, app switching or browser security UI, and a three-second hold does not identify an adult. A device-level lock requires Android app pinning with its PIN option or iPhone Guided Access, enabled by the parent. Platform behavior can vary. Installed-phone fullscreen, physical NFC, microphone quality, system media buttons, screen-reader output and wake-lock/battery behavior still require checks on the intended hardware. No formal WCAG certification or Lighthouse score is claimed. Web NFC still requires an unlocked, awake device with the app visible; black child mode does not turn the physical screen off.
+Manifest identity, scope, start URL, origin and IndexedDB schema remain unchanged. Personal audio, story IDs and tag links are retained. Pictures are optional local Blobs and are included in version-2 backups. Old picture-free backups remain valid. A complete new service worker activates without forcing old active recording/child pages to navigate.
+
+A PWA cannot disable Home, system gestures, app switching or browser security UI. A parent gesture does not identify an adult. Device locking requires parent-enabled Android app pinning or iPhone Guided Access. Physical NFC, phone fullscreen/installation, screen-reader output, microphone quality, speech voices and wake-lock/battery behavior still need checks on intended hardware. No WCAG certification or Lighthouse score is claimed.

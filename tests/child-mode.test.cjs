@@ -18,7 +18,7 @@ function fixture() {
 }
 test('legacy preferences gain child defaults and invalid settings are normalized', () => {
   const { root } = fixture(), defaults = root.StoryChild.preferences({ spoken: true });
-  assert.equal(defaults.childScreen, 'stories'); assert.equal(defaults.childLock, true);
+  assert.equal(defaults.childScreen, 'black'); assert.equal(defaults.childLock, true);
   assert.equal(defaults.touchToPause, true); assert.equal(defaults.keepAwake, true); assert.equal(defaults.tapToPause, false);
   const saved = root.StoryChild.preferences({ childScreen: 'black', childLock: false, keepAwake: false, tapToPause: true, playbackRate: 99 });
   assert.equal(saved.childScreen, 'black'); assert.equal(saved.childLock, true); assert.equal(saved.keepAwake, false);
@@ -140,4 +140,33 @@ test('screen touches preserve exit holds and drawer use while still pausing play
 test('keyboard activation and a cancelled pointer do not inherit a stale paused-touch click block', () => {
   const t = touchFixture(); t.event('pointerdown'); assert.equal(t.event('click', { detail: 0 }).stopped, false);
   t.play(); t.event('pointerdown'); t.f.documentEvents.get('pointercancel')(); assert.equal(t.event('click').stopped, false);
+});
+
+test('parent hold supports every configured duration from two through five seconds', () => {
+  for (const seconds of [2,3,4,5]) {
+    const f = fixture(); let exits = 0;
+    new f.root.StoryChild.HoldExit(f.button, { required: () => true, exit: () => exits++, progress() {}, settings: () => ({ method: 'hold', seconds }) });
+    f.emit('pointerdown'); f.advance(seconds * 1000 - 1); assert.equal(exits, 0); f.advance(1); assert.equal(exits, 1);
+  }
+});
+test('tap exits require three to five consecutive clicks and never complete from a hold', () => {
+  for (const taps of [3,4,5]) {
+    const f = fixture(); let exits = 0;
+    new f.root.StoryChild.HoldExit(f.button, { required: () => true, exit: () => exits++, progress() {}, settings: () => ({ method: 'taps', taps }) });
+    f.emit('pointerdown'); f.advance(6000); assert.equal(exits, 0);
+    for (let i = 1; i < taps; i++) { f.emit('click'); f.emit('pointerleave'); f.advance(100); assert.equal(exits, 0); }
+    f.emit('click'); assert.equal(exits, 1);
+  }
+});
+test('a pause between taps or a loss of focus resets the parent gesture', () => {
+  const f = fixture(); let exits = 0;
+  new f.root.StoryChild.HoldExit(f.button, { required: () => true, exit: () => exits++, progress() {}, settings: () => ({ method: 'taps', taps: 3 }) });
+  f.emit('click'); f.emit('click'); f.advance(1100); f.emit('click'); assert.equal(exits, 0);
+  f.emit('blur'); f.emit('click'); f.emit('click'); assert.equal(exits, 0); f.emit('click'); assert.equal(exits, 1);
+});
+test('new display and parent-handle preferences are normalized independently of legacy story-button mode', () => {
+  const p = fixture().root.StoryChild.preferences;
+  assert.equal(p({ childScreen: 'stories' }).childScreen, 'black'); assert.equal(p({ childScreen: 'now-playing' }).childScreen, 'now-playing');
+  assert.equal(p({ exitHoldSeconds: 99 }).exitHoldSeconds, 3); assert.equal(p({ exitTapCount: 2 }).exitTapCount, 4);
+  assert.equal(p({ exitMethod: 'taps', exitTapCount: 5, showStop: true }).showStop, true);
 });

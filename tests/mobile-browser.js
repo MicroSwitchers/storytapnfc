@@ -11,8 +11,8 @@ document.getElementById('mobile-run').addEventListener('click', async () => {
     const w = frame.contentWindow, d = frame.contentDocument;
     for (const width of [320,390,768,1200]) {
       frame.width = width; await wait(100);
-      for (const tab of ['library','add','setup']) {
-        d.getElementById('tab-' + tab).click(); await wait(30);
+      for (const tab of ['library','setup','add','link']) {
+        if (tab === 'add') d.getElementById('library-add').click(); else if (tab === 'link') { d.getElementById('tab-library').click(); d.querySelector('[data-link]').click(); } else d.getElementById('tab-' + tab).click(); await wait(30);
         assert(d.documentElement.scrollWidth <= d.documentElement.clientWidth + 2, width + 'px: horizontal overflow on ' + tab);
         const start = d.getElementById('mode-button').getBoundingClientRect();
         assert(start.width >= 44 && start.height >= 44, width + 'px: Start target too small');
