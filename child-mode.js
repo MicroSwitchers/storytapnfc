@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
   function preferences(saved = {}) {
-    return { spoken: saved?.spoken === true, sounds: saved?.sounds !== false,
+    return { sounds: saved?.sounds !== false,
       playbackRate: [.75,.9,1,1.25,1.5].includes(saved?.playbackRate) ? saved.playbackRate : 1,
       childScreen: saved?.childScreen === 'now-playing' ? 'now-playing' : 'black',
       exitMethod: saved?.exitMethod === 'taps' ? 'taps' : 'hold',

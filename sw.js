@@ -1,6 +1,6 @@
 /* Bump VERSION whenever a release changes any packaged asset. */
 'use strict';
-const VERSION = 'storytouch-shell-v2.0.1-release';
+const VERSION = 'storytouch-shell-v2.0.2-release';
 const EXAMPLE_REV = '278987fe704a';
 const CACHE = VERSION + '-' + EXAMPLE_REV + ':' + self.registration.scope;
 const READY = new URL('./.offline-ready', self.registration.scope).href;

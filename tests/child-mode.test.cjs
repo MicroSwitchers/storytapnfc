@@ -18,7 +18,7 @@ function fixture() {
 }
 test('legacy preferences gain child defaults and invalid settings are normalized', () => {
   const { root } = fixture(), defaults = root.StoryChild.preferences({ spoken: true });
-  assert.equal(defaults.childScreen, 'black'); assert.equal(defaults.childLock, true);
+  assert.equal(Object.hasOwn(defaults, 'spoken'), false); assert.equal(defaults.childScreen, 'black'); assert.equal(defaults.childLock, true);
   assert.equal(defaults.touchToPause, true); assert.equal(defaults.keepAwake, true); assert.equal(defaults.tapToPause, false);
   const saved = root.StoryChild.preferences({ childScreen: 'black', childLock: false, keepAwake: false, tapToPause: true, playbackRate: 99 });
   assert.equal(saved.childScreen, 'black'); assert.equal(saved.childLock, true); assert.equal(saved.keepAwake, false);

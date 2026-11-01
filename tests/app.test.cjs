@@ -226,7 +226,7 @@ test('all child settings save together without dropping voice or playback prefer
   f.element('child-keep-awake').checked = true; f.element('child-tap-pause').checked = true;
   f.root.hooks.saveChildSettings(); const o = f.root.hooks.state().options;
   assert.equal(o.childScreen, 'black'); assert.equal(o.tapToPause, true); assert.equal(o.keepAwake, true);
-  assert.equal(o.touchToPause, true); assert.equal(o.childLock, true); assert.equal(o.spoken, true); assert.equal(o.playbackRate, .9);
+  assert.equal(o.touchToPause, true); assert.equal(o.childLock, true); assert.equal(Object.hasOwn(o, 'spoken'), false); assert.equal(o.playbackRate, .9);
 });
 test('the installed Add story shortcut opens its intended parent panel', async () => {
   const f = fixture(); f.root.location.hash = '#view=add'; await f.root.hooks.handleHash();

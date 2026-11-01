@@ -1,4 +1,4 @@
-# StoryTouch 2.0.1
+# StoryTouch 2.0.2
 
 An object becomes a story. Personal audio and pictures stay in this browser.
 
@@ -12,11 +12,11 @@ The four included stories can be linked immediately. Use a story’s Listen butt
 
 ## The child’s screen
 
-**Dark screen** is the default: pure black and a small parent handle at the bottom. Settings can add a red Stop button; it stops media while NFC keeps listening.
+**Dark screen** is the default: pure black and a small parent button at the bottom. Settings can add a larger red Stop button; it stops media while NFC keeps listening. The compact Parents button has a visible border and label.
 
 **Now playing** shows only the tagged story, its picture and accompanying words if provided, and playback controls. It never presents a book selector.
 
-In Settings, set the parent handle to a **2–5 second hold** or **3–5 consecutive taps**. A pause of more than one second resets a tap sequence; an incomplete hold cancels. Keyboard Space/Enter can hold the handle. The default is a three-second hold. A gesture is an accidental-exit guard, not adult authentication.
+In Settings, set the parent button to a **2–5 second hold** or **3–5 consecutive taps**. A pause of more than one second resets a tap sequence; an incomplete hold cancels. Keyboard Space/Enter can hold the handle. The default is a three-second hold. A gesture is an accidental-exit guard, not adult authentication.
 
 Touch screen to pause is on by default and can be disabled under Listening preferences. Retapping the same object resumes a paused story. Tap the same tag to pause is a separate option, off by default; without it, retapping a playing story restarts it. Stop resets playback.
 

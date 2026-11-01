@@ -44,15 +44,15 @@ document.getElementById('run-child').onclick=async()=>{
     d.getElementById('mode-button').click();await until(()=>d.body.classList.contains('black-child')&&reader?.onreading,'dark mode');
     const visible=()=>[...d.querySelectorAll('button')].filter(b=>b.getBoundingClientRect().width&&b.getBoundingClientRect().height&&w.getComputedStyle(b).visibility!=='hidden');
     assert(visible().length===1&&visible()[0].id==='child-exit','Dark screen exposes extra controls');
-    const handle=d.getElementById('child-exit').getBoundingClientRect();assert(handle.width<=100&&handle.height>=44,'Parent handle is not visually small with an accessible hit area');
+    const handle=d.getElementById('child-exit').getBoundingClientRect();assert(handle.width<=124&&handle.height>=44,'Parent button is not compact with an accessible hit area');
     assert(w.getComputedStyle(d.getElementById('child-view')).backgroundColor==='rgb(0, 0, 0)','Dark screen is not pure black');
-    pass('Pure black screen has only a small parent handle with a 44px touch target');
+    pass('Pure black screen has only a compact parent button with a 44px touch target');
     await reader.onreading(tagEvent());assert(!paused,'Tag did not play');head=12;pointer(d.getElementById('child-view'));
     assert(paused&&!reader.signal.aborted,'Touch pause stopped NFC');await wait(1250);await reader.onreading(tagEvent());assert(!paused&&head===12,'Retapping the object did not resume the paused position');
     pass('Only tags choose stories; screen touch pauses and the object resumes playback without stopping NFC');
     await holdExit(3);d.getElementById('child-settings-shortcut').click();change('child-show-stop',true);change('exit-method-taps',true);change('exit-tap-count',3);
     d.getElementById('mode-button').click();await until(()=>d.body.classList.contains('black-child'),'dark Stop option');
-    assert(visible().length===2&&!d.getElementById('child-stop-audio').hidden,'Optional red Stop is missing');
+    assert(visible().length===2&&!d.getElementById('child-stop-audio').hidden,'Optional red Stop is missing');assert(d.getElementById('child-stop-audio').getBoundingClientRect().width>=104,'Stop target is too small');
     await reader.onreading(tagEvent());head=7;pointer(d.getElementById('child-stop-audio'));d.getElementById('child-stop-audio').click();
     assert(paused&&head===0&&!reader.signal.aborted&&d.body.classList.contains('black-child'),'Stop changed mode or NFC');
     pass('Optional red Stop remains the only playback control on black and stops media without stopping tag listening');
@@ -70,7 +70,7 @@ document.getElementById('run-child').onclick=async()=>{
     pointer(d.getElementById('player-toggle'));d.getElementById('player-toggle').dispatchEvent(new w.MouseEvent('click',{bubbles:true,cancelable:true,detail:1}));assert(paused,'One touch paused then restarted media');
     d.getElementById('player-toggle').click();await until(()=>!paused,'Play resumes');pass('A pause touch cannot immediately restart media through the underlying Play button');
     for(const width of [320,390,768,1200]){frame.style.width=width+'px';await wait(70);assert(d.documentElement.scrollWidth<=w.innerWidth+1,'Child overflow at '+width);}
-    frame.style.width='100%';pass('Current-story content, controls and parent handle fit 320, 390, 768 and 1200px');
+    frame.style.width='100%';pass('Current-story content, controls and parent button fit 320, 390, 768 and 1200px');
     const exit=d.getElementById('child-exit');exit.dispatchEvent(new w.KeyboardEvent('keydown',{key:' ',repeat:false,cancelable:true}));await wait(500);exit.dispatchEvent(new w.KeyboardEvent('keyup',{key:' ',cancelable:true}));await wait(1700);
     assert(d.body.classList.contains('child-active'),'Short two-second hold escaped');await holdExit(2);pass('The two-second hold rejects an incomplete press and completes a deliberate parent exit');
     let exported=null;const createURL=w.URL.createObjectURL.bind(w.URL),anchorClick=w.HTMLAnchorElement.prototype.click;
@@ -91,6 +91,6 @@ document.getElementById('real-fullscreen').onclick=async()=>{
     d.getElementById('child-screen-black').click();d.getElementById('mode-button').click();
     await until(()=>d.fullscreenElement===d.documentElement,'actual fullscreen');await wait(8000);await d.exitFullscreen();
     assert(d.body.classList.contains('child-active'),'Browser fullscreen exit unlocked the app');await holdExit(2);
-    pass('Actual browser fullscreen and a parent handle that stays locked after fullscreen exit');output.textContent+='ALL IMMERSIVE CHECKS PASSED\n';
+    pass('Actual browser fullscreen and a parent button that stays locked after fullscreen exit');output.textContent+='ALL IMMERSIVE CHECKS PASSED\n';
   }catch(error){output.textContent+='\nFAIL '+error.stack+'\n';}
 };

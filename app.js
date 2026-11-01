@@ -1,4 +1,4 @@
-/* StoryTouch 2.0.1. No accounts, analytics, CDN dependencies, or audio uploads. */
+/* StoryTouch 2.0.2. No accounts, analytics, CDN dependencies, or audio uploads. */
 (function () {
   'use strict';
   const C = window.StoryCore, DB = window.StoryStore;
@@ -21,7 +21,7 @@
   const nativeMedia = new StoryMedia.Controls({ play: () => resumeAudio().catch(report), pause: pauseSelected, stop: stopAudio,
     seekbackward: details => seekMedia(audio.currentTime - (details.seekOffset || 10)),
     seekforward: details => seekMedia(audio.currentTime + (details.seekOffset || 10)), seekto: details => seekMedia(details.seekTime) });
-  const pwa = new StoryPWA.Runtime({ version: 'storytouch-shell-v2.0.1-release', change: pwaStatus, canUpdate: () => !child && !recordingBusy() && !importing && audio.paused && $('audio-preview').paused && speechPlayer.state !== 'playing' && !$('story-save').disabled && !$('example-folder-add').disabled && !$('backup-export').disabled,
+  const pwa = new StoryPWA.Runtime({ version: 'storytouch-shell-v2.0.2-release', change: pwaStatus, canUpdate: () => !child && !recordingBusy() && !importing && audio.paused && $('audio-preview').paused && speechPlayer.state !== 'playing' && !$('story-save').disabled && !$('example-folder-add').disabled && !$('backup-export').disabled,
     beforeUpdate: async () => {
       requireDB(); clearTimeout(draftTimer); if (draftDirty) await persistDraft();
       if (draftDirty) throw new Error('Finish editing your draft before updating.');
@@ -97,17 +97,10 @@
     const message = error?.name === 'QuotaExceededError' ? 'This device is out of storage. Export a backup, free some space, and try again.' : (error?.message || 'Something went wrong. Please try again.');
     $('app-error').textContent = message; $('app-error').hidden = false;
   }
-  function tell(message, speak = false) {
+  function tell(message) {
     $('app-status').textContent = message; $('app-error').hidden = true;
-    if (speak) say(message);
   }
-  function say(message) {
-    if (recordingBusy() || !options.spoken || !(StorySpeech.supported()) || speechPlayer.state === 'playing') return;
-    speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(message); utterance.rate = .9;
-    speechSynthesis.speak(utterance);
-  }
-  function childStatus(message, speak = true) { $('child-status').textContent = message; if (speak) say(message); }
+  function childStatus(message) { $('child-status').textContent = message; }
   function cue() {
     if (recordingBusy() || !options.sounds) return;
     try {
@@ -118,7 +111,7 @@
       o.type = 'sine'; o.frequency.setValueAtTime(660, t); g.gain.setValueAtTime(0, t);
       g.gain.linearRampToValueAtTime(.035, t + .02); g.gain.exponentialRampToValueAtTime(.0001, t + .18);
       o.connect(g); g.connect(cueContext.destination); o.start(t); o.stop(t + .2);
-    } catch (_) { /* Visual and spoken guidance remain available. */ }
+    } catch (_) { /* Feedback is optional; playback stays available. */ }
   }
   function saveOptions() { try { localStorage.setItem('storytouch-options', JSON.stringify(options)); } catch (_) {} if (dbReady) DB.putSetting('preferences', options).catch(report); }
   function childStartUI() {
@@ -624,7 +617,7 @@
     const removeIds = customs.filter(s => s.catalogId && removed.includes(s.catalogId) && !ids.has(s.id)).map(s => s.id);
     await DB.restore(rows, data.links, removed, removeIds);
     if (selected && (rows.some(s => s.id === selected.id) || removeIds.includes(selected.id))) { stopAudio(); selected = null; syncNativeMedia(); resetPlayerURL(); $('player').hidden = true; }
-    if (data.options && typeof data.options.spoken === 'boolean' && typeof data.options.sounds === 'boolean') { options = StoryChild.preferences(data.options); saveOptions(); $('spoken-guidance').checked = options.spoken; $('feedback-sounds').checked = options.sounds; syncChildSettings(); }
+    if (data.options && typeof data.options.sounds === 'boolean') { options = StoryChild.preferences(data.options); saveOptions(); $('feedback-sounds').checked = options.sounds; syncChildSettings(); }
     await refresh(); await syncExamples(); await refresh(); tell('Backup restored on this device.'); updateStorage();
   }
   async function updateStorage() {
@@ -806,7 +799,6 @@
   $('confirm-dialog').addEventListener('cancel', e => { e.preventDefault(); finishConfirm(false); });
   on('backup-export', 'click', exportBackup); on('backup-import', 'click', () => $('backup-file').click()); on('backup-file', 'change', restoreBackup);
   on('persist-storage', 'click', async () => { if (!navigator.storage?.persist) throw new Error('This browser does not offer a persistent-storage request. Keep an exported backup.'); const granted = await navigator.storage.persist(); tell(granted ? 'The browser agreed to keep local storage. Keep an exported backup too.' : 'The browser did not grant persistent storage. Export regular backups.'); await updateStorage(); });
-  on('spoken-guidance', 'change', () => { options.spoken = $('spoken-guidance').checked; saveOptions(); if (options.spoken) say('Spoken guidance is on.'); else if (StorySpeech.supported()) speechSynthesis.cancel(); });
   on('feedback-sounds', 'change', () => { options.sounds = $('feedback-sounds').checked; saveOptions(); if (options.sounds) cue(); });
   
   
@@ -844,10 +836,10 @@
   window.addEventListener('hashchange', () => handleHash().catch(report));
   async function init() {
     try { const saved = JSON.parse(localStorage.getItem('storytouch-options')); if (saved) options = StoryChild.preferences(saved); } catch (_) {}
-    $('spoken-guidance').checked = options.spoken; $('feedback-sounds').checked = options.sounds;
+    $('feedback-sounds').checked = options.sounds;
     $('nfc-support').textContent = canNFC() ? 'NFC ready · Phone unlocked · App open' : 'NFC unavailable here · Use Android Chrome with NFC, or use a code.';
     $('read-link').disabled = !canNFC();
-    try { await DB.open(); dbReady = true; const preferences = await DB.getSetting('preferences'); if (preferences) { options = StoryChild.preferences(preferences); $('spoken-guidance').checked = options.spoken; $('feedback-sounds').checked = options.sounds; } await refresh(); await syncExamples(); await refresh(); await restoreDraft(); } catch (error) { render(); report(error); }
+    try { await DB.open(); dbReady = true; const preferences = await DB.getSetting('preferences'); if (preferences) { options = StoryChild.preferences(preferences); $('feedback-sounds').checked = options.sounds; } await refresh(); await syncExamples(); await refresh(); await restoreDraft(); } catch (error) { render(); report(error); }
     syncChildSettings();
     appInitialized = true; childStartUI();
     populateVoices(); setSource(sourceMode, false); updateStorage(); pwa.init();

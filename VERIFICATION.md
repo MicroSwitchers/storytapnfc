@@ -1,4 +1,4 @@
-# StoryTouch 2.0.1 verification
+# StoryTouch 2.0.2 verification
 
 ## Release checks
 
@@ -10,6 +10,10 @@
 Coverage includes recording final chunks and cleanup; tag decoding and persistent reading; dark-screen defaults; unsupported/denied NFC returning to adult setup; tag-only child markup; now-playing content; optional Stop; two-to-five-second holds and three-to-five-tap exits; gesture cancellation/reset; touch pause and same-object resume; fullscreen fallback/ownership; story-picture backup validation; existing-library compatibility; offline shell/audio integrity, ranges and repair; update deferral and draft preservation; manifest identity/icons; and unique HTML IDs/local asset references.
 
 All release JavaScript/Python syntax and checksums are checked before publishing. GitHub tree blob hashes are compared against the local release files before moving main.
+
+## Child control refinement
+
+The parent exit is a labelled, bordered 104 by 44px button with the existing hold/tap gestures. The optional red Stop is 112 by 112px with a stop symbol and label. Phone previews match these controls. Spoken interface guidance has been removed from the UI, preference normalization and runtime; old saved guidance preferences are ignored. Written-story speech playback and screen-reader status semantics remain available. Automated checks cover legacy preference normalization and media playback.
 
 ## Icon refinement
 
