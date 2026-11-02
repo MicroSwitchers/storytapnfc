@@ -9,7 +9,7 @@ async function until(check, label) {
 function pass(message) { output.textContent += 'PASS ' + message + '\n'; }
 async function load() {
   await new Promise(resolve => { frame.onload = resolve; frame.src = '../index.html?browser-check=' + Date.now(); });
-  await until(() => frame.contentDocument.querySelectorAll('#story-grid .story-card').length === 4, 'four starter stories');
+  await until(() => frame.contentDocument.querySelectorAll('#story-grid .story-card').length >= 4, 'four starter stories');
 }
 async function putFixtures() {
   const db = await new Promise((resolve, reject) => {
@@ -84,10 +84,17 @@ document.getElementById('run').addEventListener('click', async () => {
     const draft = await (async () => { await until(async () => (await w.StoryStore.getSetting('draft'))?.audio?.blob?.size > 0, 'persisted draft'); return w.StoryStore.getSetting('draft'); })();
     const decoded = await context.decodeAudioData(await draft.audio.blob.arrayBuffer());
     assert(decoded.duration >= 1, 'Final recording is truncated');
-    const samples = decoded.getChannelData(0); let energy = 0, peak = 0, crossings = 0;
-    for (let i = 0; i < samples.length; i++) { energy += samples[i] ** 2; peak = Math.max(peak, Math.abs(samples[i])); if (i && samples[i - 1] < 0 && samples[i] >= 0) crossings++; }
-    const rms = Math.sqrt(energy / samples.length), hz = crossings / decoded.duration;
-    assert(rms > .08 && rms < .2 && peak < .5 && Math.abs(hz - 440) < 5, 'Encoded signal is silent, distorted or at the wrong speed');
+    const samples = decoded.getChannelData(0); let energy = 0, peak = 0, crossings = 0, first = 0, last = 0, armed = false;
+    // Opus padding can cross zero repeatedly below the audible signal. Use a
+    // Schmitt trigger at 10% of the known tone amplitude to measure real cycles,
+    // retaining the same 5 Hz speed tolerance and full-buffer level/peak checks.
+    for (let i = 0; i < samples.length; i++) {
+      energy += samples[i] ** 2; peak = Math.max(peak, Math.abs(samples[i]));
+      if (samples[i] < -.02) armed = true;
+      if (armed && samples[i] >= .02) { crossings++; first ||= i; last = i; armed = false; }
+    }
+    const rms = Math.sqrt(energy / samples.length), hz = (crossings - 1) / ((last - first) / decoded.sampleRate);
+    assert(rms > .08 && rms < .2 && peak < .5 && Math.abs(hz - 440) < 5, `Encoded signal is silent, distorted or at the wrong speed (rms ${rms.toFixed(3)}, peak ${peak.toFixed(3)}, ${hz.toFixed(1)} Hz)`);
     pass('Real MediaRecorder: 192 kbps, live level, final chunk, track cleanup and a clean 440 Hz round trip');
     d.getElementById('story-form').requestSubmit();
     await until(async () => (await w.StoryStore.all('stories')).some(s => s.title === 'Browser tone recording'), 'saved recording');

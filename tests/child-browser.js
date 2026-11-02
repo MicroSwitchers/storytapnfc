@@ -50,7 +50,7 @@ document.getElementById('run-child').onclick=async()=>{
     await reader.onreading(tagEvent());assert(!paused,'Tag did not play');head=12;pointer(d.getElementById('child-view'));
     assert(paused&&!reader.signal.aborted,'Touch pause stopped NFC');await wait(1250);await reader.onreading(tagEvent());assert(!paused&&head===12,'Retapping the object did not resume the paused position');
     pass('Only tags choose stories; screen touch pauses and the object resumes playback without stopping NFC');
-    await holdExit(3);d.getElementById('child-settings-shortcut').click();change('child-show-stop',true);change('exit-method-taps',true);change('exit-tap-count',3);
+    await holdExit(3);d.getElementById('tab-setup').click();change('child-show-stop',true);change('exit-method-taps',true);change('exit-tap-count',3);
     d.getElementById('mode-button').click();await until(()=>d.body.classList.contains('black-child'),'dark Stop option');
     assert(visible().length===2&&!d.getElementById('child-stop-audio').hidden,'Optional red Stop is missing');assert(d.getElementById('child-stop-audio').getBoundingClientRect().width>=104,'Stop target is too small');
     await reader.onreading(tagEvent());head=7;pointer(d.getElementById('child-stop-audio'));d.getElementById('child-stop-audio').click();

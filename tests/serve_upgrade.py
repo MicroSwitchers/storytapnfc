@@ -18,6 +18,14 @@ class Handler(SimpleHTTPRequestHandler):
             return str(current)
         return str((self.legacy if self.phase.read_text().strip() == 'legacy' else ROOT) / relative)
 
+    def send_head(self):
+        # A freshly downloaded old snapshot can have newer timestamps than the
+        # working release. Do not let a 304 hide changed bytes after the switch.
+        for header in ('If-Modified-Since', 'If-None-Match'):
+            if header in self.headers:
+                del self.headers[header]
+        return super().send_head()
+
     def end_headers(self):
         self.send_header('Cache-Control', 'no-store')
         self.send_header('X-Content-Type-Options', 'nosniff')

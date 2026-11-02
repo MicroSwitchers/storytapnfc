@@ -1,34 +1,33 @@
-# StoryTouch 2.0.2 verification
+# StoryTouch 2.1.0 verification
 
 ## Release checks
 
-98 Node tests and 6 Python tests passed (104 total).
+103 Node tests and 6 Python tests passed (109 total).
 
     node --test tests/app.test.cjs tests/recording.test.cjs tests/child-mode.test.cjs tests/pwa.test.cjs tests/media.test.cjs tests/sw.test.cjs tests/story-picture.test.cjs
     python -B -m unittest discover -s tests -p "test_*.py"
 
-Coverage includes recording final chunks and cleanup; tag decoding and persistent reading; dark-screen defaults; unsupported/denied NFC returning to adult setup; tag-only child markup; now-playing content; optional Stop; two-to-five-second holds and three-to-five-tap exits; gesture cancellation/reset; touch pause and same-object resume; fullscreen fallback/ownership; story-picture backup validation; existing-library compatibility; offline shell/audio integrity, ranges and repair; update deferral and draft preservation; manifest identity/icons; and unique HTML IDs/local asset references.
+All application and browser-fixture JavaScript passed syntax checks. Python helpers were parsed without creating bytecode. FILES.sha256 covers the release files.
 
-All release JavaScript/Python syntax and checksums are checked before publishing. GitHub tree blob hashes are compared against the local release files before moving main.
+## Browser verification
 
-## Child control refinement
+Verified on 2 November 2026 in a fresh, isolated desktop Chrome 156 headless profile on localhost. The test server applied the production Content-Security-Policy, with frame-ancestors changed to self only to permit the same-origin fixture frames. A direct page render also used the unmodified policy. No uncaught browser errors were reported by the completed fixtures.
 
-The parent exit is a labelled, bordered 104 by 44px button with the existing hold/tap gestures. The optional red Stop is 112 by 112px with a stop symbol and label. Phone previews match these controls. Spoken interface guidance has been removed from the UI, preference normalization and runtime; old saved guidance preferences are ignored. Written-story speech playback and screen-reader status semantics remain available. Automated checks cover legacy preference normalization and media playback.
+- tests/child-mode.html: all 12 stages passed. These cover adding audio and a picture, linking, unsupported/denied NFC recovery, default black screen, compact labelled Parents button with a 44px touch target, larger optional Stop, screen-touch pause, repeat-tag resume, hold/tap exits, Now playing content, responsive controls, and backup/restore of picture/audio bytes, tag links and settings. Its additional real Fullscreen API check passed: leaving browser fullscreen does not unlock child mode.
+- tests/mobile.html: all parent panels passed at 320, 390, 768 and 1200px, with no horizontal overflow and a usable Add story target.
+- tests/pwa.html: all online and offline stages passed. Complete app/four-MP3 caching, detection and repair of a deleted cached file, native media metadata, saved private audio, tag links and draft were checked. The HTTP listener and its existing connections were closed, and browser networking was also disabled. The app reloaded, preserved its data, played private audio, served MP3 byte ranges and showed the recovery page for an uncached navigation. An independent HTTP probe confirmed the server refused connections.
+- tests/browser.html: all stages passed using the real MediaRecorder encoder at 192 kbps. A synthetic 440 Hz stream retained its expected level and peak, recorded its final chunk, released its tracks, saved, survived reload and played. All four MP3s decoded; starter migration/rename, denied-microphone recovery and cached ranges passed.
+- tests/upgrade.html: the actual public 2.0.2 snapshot was downloaded/checked against its Git blob hashes, then switched to 2.1.0 on the same origin. Both normal navigation and the ?apply=1 in-app update path passed. An active old tab kept playing while the new worker completed. Update app refused to interrupt playback, then saved an immediately edited pending draft before reloading. Private audio bytes, tag links and drafts survived both paths without clearing site data. All picture-free story/player icons remained books and the dark theme applied.
+- A parent walkthrough covered first run, upload with a picture, linking, cancel, a failed scan, testing, a wrong tag, an unknown tag, the dark screen, hold exit, Now playing and devices without NFC, at phone and desktop sizes.
 
-## Icon refinement
+The previously reported 448–470 Hz recording failure was a measurement artifact: counting every zero crossing includes tiny codec-padding fluctuations. Analysis of the recorded steady signal measured 439.996 Hz and a spectral peak at 440 Hz. The fixture now uses a Schmitt trigger at 10% of the known test amplitude; its original 5 Hz tolerance and full-buffer RMS/peak limits are unchanged. Recording code required no change.
 
-The app logo and inline book icons share symmetric cubic geometry with rounded ends and consistent spacing. The SVG and all four PNG exports were regenerated; the actual rendered PNGs and outlines were visually inspected at multiple sizes. Versioned icon URLs are cached alongside the stable asset URLs to refresh browser icon caches while preserving offline use.
-
-## Browser verification limits
-
-The 2.0 redesign has not completed interactive visual/browser verification. The previous turn’s controller could not determine the browser URL confidently and stopped. The user subsequently explicitly requested deployment. This report does not carry forward the 1.5 release’s browser-pass count as a 2.0 result.
-
-Updated isolated-localhost fixtures are included for the simplified add/link/listen flow, picture/audio backup and restore, dark and now-playing views, optional red Stop, hold/tap exits, fullscreen, responsive layout and real offline MP3 playback. They are not presented as passed in this release.
-
-After publishing, deployment completion and public HTTP release assets are verified. This confirms the bytes served by GitHub Pages, rather than a simulated deployment or a claim about every already-open browser tab.
+The upgrade fixture accepts ?from=VERSION (default 2.0.2) and ?apply=1 for the explicit update path. Its server ignores conditional timestamp headers so a freshly downloaded old snapshot cannot conceal changed release bytes behind a false 304. On Windows, use a short Chrome profile path; long paths can break CacheStorage.
 
 ## Preserved data and limitations
 
-Manifest identity, scope, start URL, origin and IndexedDB schema remain unchanged. Personal audio, story IDs and tag links are retained. Pictures are optional local Blobs and are included in version-2 backups. Old picture-free backups remain valid. A complete new service worker activates without forcing old active recording/child pages to navigate.
+Manifest identity, scope, start URL, origin and IndexedDB schema remain unchanged. Personal audio, story IDs and tag links are retained. Pictures are optional local Blobs and are included in version-2 backups. Old picture-free backups remain valid. A complete new service worker activates without forcing active recording/child pages to navigate.
 
-A PWA cannot disable Home, system gestures, app switching or browser security UI. A parent gesture does not identify an adult. Device locking requires parent-enabled Android app pinning or iPhone Guided Access. Physical NFC, phone fullscreen/installation, screen-reader output, microphone quality, speech voices and wake-lock/battery behavior still need checks on intended hardware. No WCAG certification or Lighthouse score is claimed.
+NFC events in desktop tests used a stand-in NDEFReader. Physical tags, real scan timing, phone installation/fullscreen, screen-reader output, microphone sound quality, speech voices and wake-lock/battery behavior still require the intended hardware. Synthetic encoding checks do not certify a phone microphone.
+
+A PWA cannot disable Home, system gestures, app switching or browser security UI. A parent gesture does not identify an adult. Device locking requires parent-enabled Android app pinning or iPhone Guided Access. No WCAG certification or Lighthouse score is claimed.

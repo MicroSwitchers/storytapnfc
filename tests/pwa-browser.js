@@ -8,7 +8,7 @@ function fail(error) { output.textContent += '\nFAIL ' + error.stack + '\n'; }
 async function load() {
   await new Promise(resolve => { frame.onload = resolve; frame.src = '../index.html?pwa-test=' + Date.now(); });
   await until(() => frame.contentDocument.getElementById('mode-button')?.disabled === false, 'app initialization');
-  await until(() => frame.contentDocument.getElementById('offline-badge')?.textContent.includes('Ready for offline'), 'verified offline readiness');
+  await until(() => frame.contentDocument.getElementById('offline-badge')?.dataset.state === 'ready', 'verified offline readiness');
 }
 let bytes, version;
 document.getElementById('pwa-run').addEventListener('click', async () => {
@@ -56,8 +56,10 @@ document.getElementById('pwa-offline').addEventListener('click', async () => {
     const range = await w.fetch('./example-stories/' + catalog.stories[0].file.split('/').map(encodeURIComponent).join('/'), { headers: { Range: 'bytes=0-99' } });
     assert(range.status === 206 && (await range.arrayBuffer()).byteLength === 100, 'Offline MP3 range response failed');
     pass('Bundled MP3 range requests work without the server');
-    const fallback = document.createElement('iframe'); fallback.title = 'Offline fallback check'; fallback.hidden = true; document.body.append(fallback);
-    await new Promise(resolve => { fallback.onload = resolve; fallback.src = '../not-downloaded-page'; });
+    const fallback = document.createElement('iframe'); fallback.title = 'Offline fallback check'; fallback.hidden = true;
+    // Set the target before attaching: an initial about:blank load can otherwise
+    // resolve this check before the offline navigation has finished.
+    await new Promise(resolve => { fallback.onload = resolve; fallback.src = '../not-downloaded-page'; document.body.append(fallback); });
     assert(fallback.contentDocument.title === 'Offline — StoryTouch', 'Missing page did not show offline fallback'); fallback.remove();
     pass('Uncached navigation shows the offline recovery page');
     output.textContent += '\nOFFLINE CHECKS PASSED — restart the server with the next worker version, then run step 3.\n';

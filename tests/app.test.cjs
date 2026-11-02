@@ -300,3 +300,39 @@ test('a tag resumes a screen-paused story at the same position even when repeat-
   await f.root.hooks.playTagStory('bell', 'code:BELL'); assert.equal(f.element('story-audio').paused, false);
   assert.equal(f.element('story-audio').currentTime, 12);
 });
+
+test('home offers one next step: add a story, then link a tag, then start listening', async () => {
+  const f = fixture(); await f.root.hooks.refresh();
+  assert.equal(f.element('home-title').textContent, 'Add your first story.');
+  assert.equal(f.element('next-step').hidden, false); assert.equal(f.element('mode-button').hidden, true);
+  f.data().push(audioRows()[0]); await f.root.hooks.refresh();
+  assert.equal(f.element('home-title').textContent, 'Link your first tag.'); assert.equal(f.element('mode-button').hidden, true);
+  f.links().push({ key: 'code:BELL', storyId: 'bell' }); await f.root.hooks.refresh();
+  assert.equal(f.element('home-title').textContent, 'Ready to listen.');
+  assert.equal(f.element('next-step').hidden, true); assert.equal(f.element('mode-button').hidden, false);
+});
+test('a device without NFC sees the requirement and is not offered a start it cannot use', async () => {
+  const f = fixture(audioRows(), [{ key: 'code:BELL', storyId: 'bell' }]); f.root.NDEFReader = undefined; await f.root.hooks.refresh();
+  assert.equal(f.element('home-needs').hidden, false); assert.equal(f.element('mode-button').hidden, true);
+  assert.match(f.element('home-title').textContent, /Android/);
+});
+test('adult Stop closes the player and keeps its stopped state', async () => {
+  const f = fixture(audioRows()); await f.root.hooks.playTagStory('bell', 'code:BELL');
+  assert.equal(f.element('player').hidden, false); await f.element('player-stop').emit('click');
+  assert.equal(f.element('player').hidden, true); assert.equal(f.root.hooks.state().selected, null);
+  assert.equal(f.element('player-state').textContent, 'Stopped');
+});
+test('an unknown tag on the dark screen gives a visible signal and keeps NFC running', async () => {
+  const f = fixture(audioRows(), [{ key: 'code:BELL', storyId: 'bell' }]); await f.root.hooks.refresh(); await f.root.hooks.setChild(true);
+  assert.equal(f.element('child-ready').hidden, false);
+  await f.readers[0].onreading({ message: { records: [{ recordType: 'text', data: new TextEncoder().encode('OTHER') }] } });
+  assert.equal(f.element('child-signal').hidden, false); assert.equal(f.element('child-ready').hidden, true);
+  assert.equal(f.readers[0].signal.aborted, false);
+});
+test('a failed tag scan is explained in the wizard and offers the scan again', async () => {
+  const f = fixture(audioRows()); await f.root.hooks.refresh(); f.element('link-story').value = 'bell';
+  f.root.NDEFReader = class { async scan() { throw { name: 'NotReadableError' }; } };
+  await f.element('read-link').emit('click'); await new Promise(resolve => setImmediate(resolve));
+  assert.match(f.element('link-scan-state').textContent, /Turn NFC on/); assert.equal(f.element('read-link').hidden, false);
+  assert.equal(f.element('tag-visual').classList.contains('is-error'), true); assert.equal(f.element('app-error').hidden, true);
+});

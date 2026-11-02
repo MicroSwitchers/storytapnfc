@@ -1,18 +1,20 @@
-# StoryTouch 2.0.2
+# StoryTouch 2.1.0
 
 An object becomes a story. Personal audio and pictures stay in this browser.
 
 ## Add → link → listen
 
-1. Choose **Add story**, then Record, Upload, or Write. Give it a name. A picture or accompanying words are optional.
-2. **Save & link** goes straight to that story’s tag screen. Choose **Read tag** and tap the object’s NFC tag. Choose Done.
-3. Choose **Start listening** and hand over the phone. Tags choose the stories; there is no child story shelf.
+The home screen shows three steps (Story, Tag, Listen), marks what is done, and offers one next action.
 
-The four included stories can be linked immediately. Use a story’s Listen button for an adult preview, Link object to connect its tag, or the pencil to edit its details.
+1. Choose **Add story**, then Record, Upload, or Write. Give it a name. A picture or accompanying words are optional.
+2. **Save & link a tag** goes straight to that story’s tag screen. Choose **Scan tag** and hold the tag to the back of the phone. Once NFC has been allowed, scanning starts by itself.
+3. Choose **Test tag** to hear it work, then **Start listening** and hand over the phone. Tags choose the stories; there is no child story shelf.
+
+**Start listening** appears once a tag is linked. The four included stories can be linked immediately. Use a story’s Listen button for an adult preview, Link tag to connect a tag, or the pencil to edit its details.
 
 ## The child’s screen
 
-**Dark screen** is the default: pure black and a small parent button at the bottom. Settings can add a larger red Stop button; it stops media while NFC keeps listening. The compact Parents button has a visible border and label.
+**Dark screen** is the default: a short picture of the tap and the parent exit, then pure black and a small parent button at the bottom. A tag with no story shows a brief tag symbol and a low tone, so it does not look like a broken phone. Settings can add a larger red Stop button; it stops media while NFC keeps listening. The compact Parents button has a visible border and label.
 
 **Now playing** shows only the tagged story, its picture and accompanying words if provided, and playback controls. It never presents a book selector.
 
@@ -22,7 +24,7 @@ Touch screen to pause is on by default and can be disabled under Listening prefe
 
 ## Phone setup
 
-In-app tag reading requires an NFC-enabled Android phone with Chrome, HTTPS, NFC permission, and an unlocked, awake phone with the app visible. Unsupported or denied NFC leaves adults in setup rather than exposing child story buttons. An incoming same-app URL tag can select its own story.
+In-app tag reading requires an NFC-enabled Android phone with Chrome, HTTPS, NFC permission, and an unlocked, awake phone with the app visible. A device without tag reading says so on the home screen and does not offer Start listening; a denied or failed scan is explained on the tag screen. Neither exposes child story buttons. An incoming same-app URL tag can select its own story.
 
 The PWA requests fullscreen launch with a standalone fallback. Start listening also requests fullscreen where allowed. A PWA cannot disable Home, system gestures, app switching, or browser security UI. For a device lock, a parent can enable Android app pinning with its PIN option or iPhone Guided Access.
 
@@ -42,7 +44,7 @@ Pictures are optional JPG, PNG, WebP, GIF or AVIF files up to 5 MB and 32 millio
 
 ## Settings and backups
 
-Settings holds screen choices, parent-handle gestures and the optional Stop button. Listening preferences, linked objects, backup tools and app installation/offline controls are tucked into disclosure rows.
+Settings holds screen choices, parent-handle gestures and the optional Stop button. Listening preferences, linked tags, backup tools and app installation/offline controls are tucked into disclosure rows.
 
 Export a backup before changing browser, device or site address, and before clearing site data. A backup includes audio, optional pictures, words, tag links and preferences. Restore merges stories and replaces matching IDs/tag codes after confirmation. The current restore-file limit is 285 MB. StoryTouch does not upload personal recordings or pictures. Device speech services may process online voices.
 
