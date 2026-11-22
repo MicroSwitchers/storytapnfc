@@ -1,5 +1,9 @@
 # StoryTouch verification
 
+## 2.2.4
+
+108 Node tests and the changed JavaScript syntax checks passed. Tag preview is text-only. Results show the linked title, tag ID, recognized StoryTouch code, and whether the tag is blank or has unrecognized written data. The NFC preview test covers linked tags by code and ID, blank tags, unlinked tag codes, and unrecognized records.
+
 ## 2.2.3
 
 108 Node tests and the changed JavaScript syntax checks passed. Tag preview speech announces the linked story as “Title: {story title}” without reading the tag ID or encoded tag data. Blank and unlinked tags receive concise spoken feedback; the on-screen status retains tag diagnostics. The simulated NFC preview test verifies all three spoken results.

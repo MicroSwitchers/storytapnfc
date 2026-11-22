@@ -43,8 +43,6 @@ function fixture(rows = [], links = []) {
     StoryRecording: { async openMicrophone() { return stream; }, createRecorder() { return recorder; }, monitor() { return () => { meterStopped++; }; } },
     document: { documentElement: element('html'), body: element('body'), hidden: false, getElementById: element, querySelector: element, querySelectorAll() { return []; }, addEventListener(name, fn) { documentEvents.set(name, fn); } },
     navigator: { mediaDevices: { getUserMedia() {} }, vibrate(pattern) { vibrations.push(pattern); return true; } }, isSecureContext: true, MediaRecorder: function () {},
-    SpeechSynthesisUtterance: class { constructor(text) { this.text = text; } },
-    speechSynthesis: { utterances: [], speak(utterance) { this.utterances.push(utterance); } },
     addEventListener(name, callback) { events.set(name, callback); }, Blob, TextEncoder, AbortController, performance, URLSearchParams,
     URL: class extends URL { static createObjectURL() { return 'blob:test'; } static revokeObjectURL() {} },
     location: { href: 'https://storytouch.test/index.html' },
@@ -201,29 +199,27 @@ test('story cards identify device storage and source, while linked tags expose t
   assert.match(tags, /Tag ID: BELL/); assert.match(tags, /Unlink tag/);
   assert.match(tags, /physical tag is not erased/);
 });
-test('tag preview speaks and displays linked, blank, and unassociated tag results', async () => {
+test('tag preview displays clear text details for linked, blank, and unassociated tags', async () => {
   async function preview(event, rows = [], links = []) {
-    const f = fixture(rows, links); f.root.StorySpeech.supported = () => true;
+    const f = fixture(rows, links);
     await f.root.hooks.refresh(); await f.root.hooks.startScan('preview');
     await f.readers[0].onreading(event);
-    return { text: f.element('preview-tag-status').textContent, spoken: f.root.speechSynthesis.utterances.map(utterance => utterance.text), aborted: f.readers[0].signal.aborted };
+    return { text: f.element('preview-tag-status').textContent, aborted: f.readers[0].signal.aborted };
   }
   const story = { ...audioRows()[0], title: 'Snowy Day' };
   const linked = await preview({ serialNumber: '04:AA', message: { records: [{ recordType: 'text', data: new TextEncoder().encode('BELL') }] } },
     [story], [{ key: 'code:BELL', storyId: 'bell' }]);
-  assert.match(linked.text, /linked to “Snowy Day”/); assert.match(linked.text, /serial number 04:AA/); assert.match(linked.text, /tag code BELL/);
-  assert.deepEqual(linked.spoken, ['Title: Snowy Day'], 'speech should announce only the linked story title');
+  assert.equal(linked.text, 'Title: Snowy Day\nTag ID: serial number 04:AA; tag code BELL\nTag data: StoryTouch tag code BELL.\nStatus: Linked to this story.');
   assert.equal(linked.aborted, true);
   const idLinked = await preview({ serialNumber: '04:CC', message: { records: [] } },
     [story], [{ key: 'uid:04:cc', storyId: 'bell' }]);
-  assert.match(idLinked.text, /no written data/);
-  assert.deepEqual(idLinked.spoken, ['Title: Snowy Day'], 'an ID-linked tag should speak its title without a data report');
+  assert.equal(idLinked.text, 'Title: Snowy Day\nTag ID: serial number 04:CC\nTag data: Blank (no NDEF records).\nStatus: Linked to this story by tag ID.');
   const blank = await preview({ serialNumber: '04:BB', message: { records: [] } });
-  assert.match(blank.text, /blank/); assert.match(blank.text, /04:BB/);
-  assert.deepEqual(blank.spoken, ['Blank tag. No story is linked.']);
+  assert.equal(blank.text, 'Title: No linked story\nTag ID: serial number 04:BB\nTag data: Blank (no NDEF records).\nStatus: Not linked to a story in this library.');
   const unknown = await preview({ message: { records: [{ recordType: 'text', data: new TextEncoder().encode('UNKNOWN') }] } });
-  assert.match(unknown.text, /contains data that is not linked/); assert.match(unknown.text, /tag code UNKNOWN/);
-  assert.deepEqual(unknown.spoken, ['No story is linked to this tag.'], 'speech should not read tag data or identifiers');
+  assert.equal(unknown.text, 'Title: No linked story\nTag ID: tag code UNKNOWN\nTag data: StoryTouch tag code UNKNOWN.\nStatus: Not linked to a story in this library.');
+  const unrecognized = await preview({ serialNumber: '04:DD', message: { records: [{ recordType: 'mime', data: new Uint8Array([1]) }] } });
+  assert.equal(unrecognized.text, 'Title: No linked story\nTag ID: serial number 04:DD\nTag data: Written NDEF data is present, but no StoryTouch tag code was recognized.\nStatus: Not linked to a story in this library.');
 });
 test('haptic feedback distinguishes ready, recognized, and unknown tags and can be disabled', async () => {
   const f = fixture(audioRows(), [{ key: 'code:BELL', storyId: 'bell' }]); f.root.hooks.configure({ sounds: false });

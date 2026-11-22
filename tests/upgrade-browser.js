@@ -1,7 +1,7 @@
 'use strict';
 const frame = document.getElementById('app'), output = document.getElementById('results');
 const fromVersion = new URLSearchParams(location.search).get('from') || '2.0.2';
-const toVersion = '2.2.3';
+const toVersion = '2.2.4';
 const applyInApp = new URLSearchParams(location.search).has('apply');
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const assert = (value, label) => { if (!value) throw new Error(label); };

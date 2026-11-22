@@ -272,7 +272,7 @@ body:not(.child-active) .stop-word{display:none}body:not(.child-active) .stop-cr
 .tag-preview h2{font-size:1.25rem}
 .tag-preview>p{max-width:620px}
 .tag-preview .button-row{margin-top:14px}
-.tag-preview #preview-tag-status{min-height:1.5em}
+.tag-preview #preview-tag-status{min-height:1.5em;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#101817;color:var(--ink);font-size:.88rem;white-space:pre-line;overflow-wrap:anywhere}
 .tag-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:12px 0;border-bottom:1px solid var(--line)}
 .tag-row>strong{flex:1 1 150px;overflow-wrap:anywhere}
 .tag-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}

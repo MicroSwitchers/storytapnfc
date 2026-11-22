@@ -1,4 +1,4 @@
-/* StoryTouch 2.2.3. No accounts, analytics, CDN dependencies, or audio uploads. */
+/* StoryTouch 2.2.4. No accounts, analytics, CDN dependencies, or audio uploads. */
 (function () {
   'use strict';
   const C = window.StoryCore, DB = window.StoryStore;
@@ -23,7 +23,7 @@
   const nativeMedia = new StoryMedia.Controls({ play: () => resumeAudio().catch(report), pause: pauseSelected, stop: stopAudio,
     seekbackward: details => seekMedia(audio.currentTime - (details.seekOffset || 10)),
     seekforward: details => seekMedia(audio.currentTime + (details.seekOffset || 10)), seekto: details => seekMedia(details.seekTime) });
-  const pwa = new StoryPWA.Runtime({ version: 'storytouch-shell-v2.2.3-release', change: pwaStatus, canUpdate: () => !child && !recordingBusy() && !importing && audio.paused && $('audio-preview').paused && speechPlayer.state !== 'playing' && !$('story-save').disabled && !$('example-folder-add').disabled && !$('backup-export').disabled,
+  const pwa = new StoryPWA.Runtime({ version: 'storytouch-shell-v2.2.4-release', change: pwaStatus, canUpdate: () => !child && !recordingBusy() && !importing && audio.paused && $('audio-preview').paused && speechPlayer.state !== 'playing' && !$('story-save').disabled && !$('example-folder-add').disabled && !$('backup-export').disabled,
     beforeUpdate: async () => {
       requireDB(); clearTimeout(draftTimer); if (draftDirty) await persistDraft();
       if (draftDirty) throw new Error('Finish editing your draft before updating.');
@@ -259,42 +259,25 @@
     $('link-done-title').textContent = tested ? 'It works.' : 'Tag linked.';
     $('linked-story-display').textContent = tested ? 'That tag plays “' + story.title + '”.' : 'Test it, so you know it works before you hand it over.';
   }
-  function announceTagPreview(message, spokenText) {
-    const status = $('preview-tag-status');
-    status.textContent = message;
-    if (!StorySpeech.supported()) { status.textContent += ' Spoken feedback is unavailable on this device.'; return; }
-    try {
-      const utterance = new window.SpeechSynthesisUtterance(spokenText);
-      utterance.rate = options.playbackRate || 1;
-      utterance.onerror = event => {
-        if (!['canceled','interrupted'].includes(event.error)) status.textContent += ' Spoken preview failed.';
-      };
-      window.speechSynthesis.speak(utterance);
-    } catch (error) {
-      status.textContent += ' Spoken preview could not start.';
-      throw error;
-    }
-  }
   function previewTag(event, keys) {
     const records = event.message?.records || [];
     const link = keys.map(key => links.find(item => item.key === key)).find(Boolean);
     const story = link && storyById(link.storyId);
     const serial = typeof event.serialNumber === 'string' ? event.serialNumber.trim() : '';
-    const codeKey = (link?.key.startsWith('code:') ? link.key : keys.find(key => key.startsWith('code:'))) || '';
+    const codeKeys = keys.filter(key => key.startsWith('code:'));
     const identifiers = [];
     if (serial) identifiers.push('serial number ' + serial);
-    if (codeKey) identifiers.push('tag code ' + codeKey.slice(5));
-    const id = identifiers.join('; ') || 'not provided by this tag or browser';
-    const detail = 'Tag ID: ' + id + '.';
-    if (story) return {
-      message: records.length
-        ? 'This tag is linked to “' + story.title + '”. ' + detail
-        : 'This tag has no written data, but its ID is linked to “' + story.title + '”. ' + detail,
-      spokenText: 'Title: ' + story.title
-    };
-    return records.length
-      ? { message: 'This tag contains data that is not linked to a story in this library. ' + detail, spokenText: 'No story is linked to this tag.' }
-      : { message: 'This tag is blank and is not linked to a story in this library. ' + detail, spokenText: 'Blank tag. No story is linked.' };
+    for (const key of codeKeys) identifiers.push('tag code ' + key.slice(5));
+    const lines = [
+      'Title: ' + (story ? story.title : 'No linked story'),
+      'Tag ID: ' + (identifiers.join('; ') || 'Not provided by this tag or browser')
+    ];
+    if (codeKeys.length) lines.push('Tag data: StoryTouch tag code ' + codeKeys.map(key => key.slice(5)).join(', ') + '.');
+    else if (records.length) lines.push('Tag data: Written NDEF data is present, but no StoryTouch tag code was recognized.');
+    else lines.push('Tag data: Blank (no NDEF records).');
+    if (story) lines.push(link.key.startsWith('code:') ? 'Status: Linked to this story.' : 'Status: Linked to this story by tag ID.');
+    else lines.push('Status: Not linked to a story in this library.');
+    return lines.join('\n');
   }
   function openTagSetup(id, scan = true) {
     setTab('link', true); if (storyById(id)) $('link-story').value = id;
@@ -693,8 +676,8 @@
           if (!key) { $('link-scan-state').textContent = 'This tag can’t be read. Try a different tag, such as an NTAG213 sticker.'; return; }
           stopNFC(); await saveLink(key, session.storyId);
         } else if (mode === 'preview') {
-          const preview = previewTag(event, keys);
-          stopNFC(); haptic('tag'); announceTagPreview(preview.message, preview.spokenText);
+          const description = previewTag(event, keys);
+          stopNFC(); haptic('tag'); $('preview-tag-status').textContent = description;
         } else {
           const match = keys.map(k => links.find(l => l.key === k)).find(Boolean);
           if (!match) { if (mode === 'test') $('link-scan-state').textContent = 'That tag has no story yet. Try the one you just linked.'; else { childStatus('This tag has no story yet. Ask a grown-up to link it.'); if (blackChild) signalUnknownTag(); const now = Date.now(); if (now - session.lastUnknownTime >= 1000) { haptic('unknown'); session.lastUnknownTime = now; } } return; }
