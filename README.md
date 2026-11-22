@@ -1,4 +1,4 @@
-# StoryTouch 2.2.2
+# StoryTouch 2.2.3
 
 An object becomes a story. Personal audio and pictures stay in this browser.
 

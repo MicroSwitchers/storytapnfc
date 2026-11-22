@@ -1,5 +1,9 @@
 # StoryTouch verification
 
+## 2.2.3
+
+108 Node tests and the changed JavaScript syntax checks passed. Tag preview speech announces the linked story as “Title: {story title}” without reading the tag ID or encoded tag data. Blank and unlinked tags receive concise spoken feedback; the on-screen status retains tag diagnostics. The simulated NFC preview test verifies all three spoken results.
+
 ## 2.2.2
 
 Haptic preferences default on and accept a saved opt-out. Simulated NFC checks cover listening-ready, recognized-tag, unknown-tag, pause, stop, and resume feedback; suppress duplicate-read vibration; and confirm haptics still work with sounds off and remain silent when disabled. Physical vibration behavior depends on the device and browser.
