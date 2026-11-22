@@ -2,15 +2,17 @@
 (function (root) {
   'use strict';
   function preferences(saved = {}) {
-    return { sounds: saved?.sounds !== false,
+    const touchAction = ['none', 'pause', 'stop'].includes(saved?.touchAction)
+      ? saved.touchAction : saved?.touchToPause === true ? 'pause' : 'none';
+    return { sounds: saved?.sounds !== false, haptics: saved?.haptics !== false,
       playbackRate: [.75,.9,1,1.25,1.5].includes(saved?.playbackRate) ? saved.playbackRate : 1,
       childScreen: saved?.childScreen === 'now-playing' ? 'now-playing' : 'black',
       exitMethod: saved?.exitMethod === 'taps' ? 'taps' : 'hold',
       exitHoldSeconds: [2,3,4,5].includes(saved?.exitHoldSeconds) ? saved.exitHoldSeconds : 3,
       exitTapCount: [3,4,5].includes(saved?.exitTapCount) ? saved.exitTapCount : 4,
-      showStop: saved?.showStop === true,
-      childLock: true, keepAwake: saved?.keepAwake !== false, touchToPause: saved?.touchToPause !== false,
-      tapToPause: saved?.tapToPause === true };
+      showStop: saved?.showStop !== false, showPause: saved?.showPause === true, touchAction,
+      childLock: true, keepAwake: saved?.keepAwake !== false,
+      tapToPause: saved?.tapToPause === true, tapToStop: saved?.tapToStop === true };
   }
   class Immersive {
     constructor(status = () => {}) { this.status = status; this.wanted = false; }
@@ -36,21 +38,22 @@
       this.status('off');
     }
   }
-  class TouchPause {
-    constructor({ enabled, playing, pause }) {
+  class ScreenTouch {
+    constructor({ action, playing, pause, stop }) {
       root.document.addEventListener('pointerdown', event => {
         this.blocked = null;
-        if (!enabled() || !playing() || event.button !== 0) return;
-        pause();
-        // The parent hold and drawer handle still work. Other controls must not turn
-        // this same touch into a resume, restart, or a different story after pausing.
-        if (event.target.closest?.('#child-exit, #player-drawer-toggle, #child-stop-audio')) return;
-        this.blocked = { time: root.performance.now() };
+        if (event.button !== 0 || event.isPrimary === false || !playing()) return;
+        if (event.target.closest?.('button, input, select, a, summary, label')) return;
+        const selected = action();
+        if (selected === 'pause') pause();
+        else if (selected === 'stop') stop();
+        else return;
+        this.blocked = root.performance.now();
         event.preventDefault();
       }, { capture: true, passive: false });
       root.document.addEventListener('click', event => {
         const blocked = this.blocked; this.blocked = null;
-        if (!blocked || event.detail === 0 || root.performance.now() - blocked.time > 1500) return;
+        if (blocked == null || event.detail === 0 || root.performance.now() - blocked > 1500) return;
         event.preventDefault(); event.stopImmediatePropagation();
       }, true);
       root.document.addEventListener('pointercancel', () => { this.blocked = null; }, true);
@@ -140,7 +143,7 @@
       }
     }
   }
-  const api = { preferences, HoldExit, WakeKeeper, Immersive, TouchPause };
+  const api = { preferences, HoldExit, WakeKeeper, Immersive, ScreenTouch };
   root.StoryChild = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(typeof window === 'undefined' ? globalThis : window);

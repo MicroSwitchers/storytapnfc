@@ -1,4 +1,4 @@
-/* StoryTouch 2.1.0. No accounts, analytics, CDN dependencies, or audio uploads. */
+/* StoryTouch 2.2.2. No accounts, analytics, CDN dependencies, or audio uploads. */
 (function () {
   'use strict';
   const C = window.StoryCore, DB = window.StoryStore;
@@ -23,7 +23,7 @@
   const nativeMedia = new StoryMedia.Controls({ play: () => resumeAudio().catch(report), pause: pauseSelected, stop: stopAudio,
     seekbackward: details => seekMedia(audio.currentTime - (details.seekOffset || 10)),
     seekforward: details => seekMedia(audio.currentTime + (details.seekOffset || 10)), seekto: details => seekMedia(details.seekTime) });
-  const pwa = new StoryPWA.Runtime({ version: 'storytouch-shell-v2.1.0-release', change: pwaStatus, canUpdate: () => !child && !recordingBusy() && !importing && audio.paused && $('audio-preview').paused && speechPlayer.state !== 'playing' && !$('story-save').disabled && !$('example-folder-add').disabled && !$('backup-export').disabled,
+  const pwa = new StoryPWA.Runtime({ version: 'storytouch-shell-v2.2.2-release', change: pwaStatus, canUpdate: () => !child && !recordingBusy() && !importing && audio.paused && $('audio-preview').paused && speechPlayer.state !== 'playing' && !$('story-save').disabled && !$('example-folder-add').disabled && !$('backup-export').disabled,
     beforeUpdate: async () => {
       requireDB(); clearTimeout(draftTimer); if (draftDirty) await persistDraft();
       if (draftDirty) throw new Error('Finish editing your draft before updating.');
@@ -44,12 +44,23 @@
     canInstall = state.installable && !state.installed; syncHome();
     $('offline-check').disabled = state.busy || state.offline === 'unsupported'; $('check-updates').disabled = state.busy || state.offline === 'unsupported';
   }
+  function isPlaying() {
+    return !!selected && (selected.kind === 'text' ? speechPlayer.state === 'playing' : !audio.paused && !audio.ended);
+  }
   function syncNativeMedia() {
     const state = $('player-state').textContent;
-    const playing = selected?.kind === 'text' ? speechPlayer.state === 'playing' : !audio.paused && !audio.ended;
+    const playing = isPlaying();
     nativeMedia.sync(selected, ['Stopped','Finished'].includes(state) ? 'none' : playing ? 'playing' : 'paused', audio);
+    const pauseButton = $('child-pause-audio');
+    const paused = state === 'Paused';
+    pauseButton.disabled = !playing && !paused;
+    pauseButton.classList.toggle('is-paused', paused);
+    const pauseLabel = $('child-pause-label'), label = paused ? 'Resume' : 'Pause';
+    if (pauseLabel.textContent !== label) pauseLabel.textContent = label;
   }
   function pauseSelected() { if (selected?.kind === 'text') speechPlayer.pause(); else audio.pause(); }
+  function pauseChildStory() { pauseSelected(); childStatus('Paused. Tap your tag to continue.'); haptic('pause'); }
+  function stopChildStory() { stopAudio(); childStatus('Stopped.'); haptic('stop'); }
   function seekMedia(position) {
     if (!selected || selected.kind === 'text' || recordingBusy() || !Number.isFinite(position)) return;
     const duration = Number.isFinite(audio.duration) ? audio.duration : selected.duration;
@@ -65,9 +76,8 @@
   const immersive = new StoryChild.Immersive(state => {
     $('fullscreen-state').textContent = state === 'active' ? 'Full screen is active. System navigation is still controlled by your phone.' : state === 'off' ? 'Child mode requests full screen with browser controls hidden wherever supported.' : 'This browser could not enter full screen. Install and open StoryTouch from its home-screen icon for fewer controls.';
   });
-  new StoryChild.TouchPause({ enabled: () => child && options.touchToPause,
-    playing: () => selected && (selected.kind === 'text' ? speechPlayer.state === 'playing' : !audio.paused && !audio.ended),
-    pause: () => { pauseSelected(); childStatus('Paused after a screen touch. Tap your object to continue.', false); }
+  new StoryChild.ScreenTouch({ action: () => child ? options.touchAction : 'none',
+    playing: isPlaying, pause: pauseChildStory, stop: stopChildStory
   });
   function setPlayerDrawer(open, focus = false) {
     playerDrawerOpen = open;
@@ -120,6 +130,11 @@
       o.connect(g); g.connect(cueContext.destination); o.start(t); o.stop(t + .2);
     } catch (_) { /* Feedback is optional; playback stays available. */ }
   }
+  function haptic(kind) {
+    const patterns = { listening: [18], tag: [32], pause: [18, 35, 18], stop: [45], unknown: [22, 50, 22], saved: [20, 40, 20] };
+    if (recordingBusy() || !options.haptics || typeof navigator.vibrate !== 'function') return;
+    navigator.vibrate(patterns[kind]);
+  }
   function saveOptions() { try { localStorage.setItem('storytouch-options', JSON.stringify(options)); } catch (_) {} if (dbReady) DB.putSetting('preferences', options).catch(report); }
   function childStartUI() {
     $('mode-button').disabled = !appInitialized || child || recordingBusy() || importing;
@@ -130,15 +145,19 @@
   function syncChildSettings() {
     $('child-screen-now').checked = options.childScreen === 'now-playing'; $('child-screen-black').checked = options.childScreen === 'black';
     $('child-show-stop').checked = options.showStop; $('child-settings').classList.toggle('has-stop', options.showStop);
-    $('child-keep-awake').checked = options.keepAwake; $('child-tap-pause').checked = options.tapToPause; $('child-touch-pause').checked = options.touchToPause;
+    $('child-show-pause').checked = options.showPause; $('child-settings').classList.toggle('has-pause', options.showPause);
+    $('child-touch-action').value = options.touchAction;
+    $('child-keep-awake').checked = options.keepAwake; $('child-tap-pause').checked = options.tapToPause;
+    $('child-tap-stop').checked = options.tapToStop; $('feedback-haptics').checked = options.haptics;
     $('exit-method-hold').checked = options.exitMethod === 'hold'; $('exit-method-taps').checked = options.exitMethod === 'taps';
     $('exit-hold-seconds').value = String(options.exitHoldSeconds); $('exit-tap-count').value = String(options.exitTapCount);
     $('exit-hold-setting').hidden = options.exitMethod !== 'hold'; $('exit-tap-setting').hidden = options.exitMethod !== 'taps';
   }
   function saveChildSettings() {
-    options = StoryChild.preferences({ ...options, childScreen: $('child-screen-now').checked ? 'now-playing' : 'black', showStop: $('child-show-stop').checked,
+    options = StoryChild.preferences({ ...options, childScreen: $('child-screen-now').checked ? 'now-playing' : 'black',
+      showStop: $('child-show-stop').checked, showPause: $('child-show-pause').checked, touchAction: $('child-touch-action').value,
       exitMethod: $('exit-method-taps').checked ? 'taps' : 'hold', exitHoldSeconds: Number($('exit-hold-seconds').value), exitTapCount: Number($('exit-tap-count').value),
-      touchToPause: $('child-touch-pause').checked, keepAwake: $('child-keep-awake').checked, tapToPause: $('child-tap-pause').checked });
+      keepAwake: $('child-keep-awake').checked, tapToPause: $('child-tap-pause').checked, tapToStop: $('child-tap-stop').checked });
     saveOptions(); syncChildSettings(); $('child-settings-saved').textContent = 'Saved on this phone';
   }
   function stories() { return customs; }
@@ -184,9 +203,17 @@
     }
     return C.BOOK_ICON;
   }
+  function storyStorage(story) {
+    const origin = story.catalogId ? 'Built-in StoryTouch story' : story.exampleFile ? 'Imported folder: ' + story.exampleFile.split('|')[0]
+      : story.sourceName ? 'Uploaded file: ' + story.sourceName : story.origin === 'recorded' ? 'Recorded in StoryTouch'
+        : story.origin === 'written' || story.kind === 'text' ? 'Written in StoryTouch' : 'Audio story';
+    const added = Number.isFinite(story.created) && story.created > 0 ? ' · Added ' + new Date(story.created).toLocaleString() : '';
+    return 'Stored on this device in StoryTouch · ' + origin + added;
+  }
+  function tagIdentifier(key) { return key.slice(key.indexOf(':') + 1); }
   function storyCard(story) {
     const linked = links.some(link => link.storyId === story.id);
-    return `<article class="story-card"><div class="story-cover ${coverHue(story.id)}">${storyArt(story)}<button class="card-edit icon-button" data-edit="${esc(story.id)}" aria-label="Edit ${esc(story.title)}">${icon('edit')}</button></div><div class="card-body"><h3>${esc(story.title)}</h3><p class="card-meta">${story.kind === 'text' ? 'Read aloud' : story.duration ? C.formatTime(story.duration) : 'Audio story'}</p><div class="card-actions"><button class="button preview-button" data-play="${esc(story.id)}" aria-label="Preview ${esc(story.title)}">${icon('play')} Listen</button><button class="button ${linked ? 'is-linked' : 'outline'}" data-link="${esc(story.id)}" aria-label="${linked ? 'Tag linked. Add or change a tag' : 'Link a tag'} for ${esc(story.title)}">${icon(linked ? 'check' : 'tag')} ${linked ? 'Linked' : 'Link tag'}</button></div></div></article>`;
+    return `<article class="story-card"><div class="story-cover ${coverHue(story.id)}">${storyArt(story)}<button class="card-edit icon-button" data-edit="${esc(story.id)}" aria-label="Edit or delete ${esc(story.title)}">${icon('edit')}<span>Edit</span></button></div><div class="card-body"><h3>${esc(story.title)}</h3><p class="card-meta">${story.kind === 'text' ? 'Read aloud' : story.duration ? C.formatTime(story.duration) : 'Audio story'}</p><p class="card-storage">${esc(storyStorage(story))}</p><div class="card-actions"><button class="button preview-button" data-play="${esc(story.id)}" aria-label="Preview ${esc(story.title)}">${icon('play')} Listen</button><button class="button ${linked ? 'is-linked' : 'outline'}" data-link="${esc(story.id)}" aria-label="${linked ? 'Tag linked. Add or change a tag' : 'Link a tag'} for ${esc(story.title)}">${icon(linked ? 'check' : 'tag')} ${linked ? 'Linked' : 'Link tag'}</button></div></div></article>`;
   }
   function render() {
     for (const url of cardURLs.values()) URL.revokeObjectURL(url); cardURLs.clear();
@@ -196,9 +223,11 @@
     const prior = $('link-story').value;
     $('link-story').innerHTML = list.map(story => `<option value="${esc(story.id)}">${esc(story.title)}</option>`).join('');
     if (storyById(prior)) $('link-story').value = prior;
-    $('linked-tags').innerHTML = links.length ? links.map(link => `<div class="tag-row"><strong>${esc(storyById(link.storyId)?.title || 'Story missing')}</strong><span class="small quiet">${esc(link.key.startsWith('code:') ? link.key.slice(5) : 'NFC tag')}</span><div class="tag-actions">${link.key.startsWith('code:') ? `<button class="text-button" data-write="${esc(link.key)}">Write URL</button><button class="text-button" data-copy="${esc(link.key)}">Copy URL</button>` : ''}<button class="text-button danger-text" data-unlink="${esc(link.key)}">Unlink</button></div></div>`).join('') : '<p class="small quiet">No tags linked yet.</p>';
+    $('linked-tags').innerHTML = '<p class="small quiet">Choose Unlink tag to clear only the StoryTouch association; the story stays in your library and data on the physical tag is not erased. To delete the story too, use its Edit button and choose Delete story and linked tags.</p>' + (links.length ? links.map(link => `<div class="tag-row"><strong>${esc(storyById(link.storyId)?.title || 'Story missing')}</strong><span class="small quiet">Tag ID: ${esc(tagIdentifier(link.key))}</span><div class="tag-actions">${link.key.startsWith('code:') ? `<button class="text-button" data-write="${esc(link.key)}">Write URL</button><button class="text-button" data-copy="${esc(link.key)}">Copy URL</button>` : ''}<button class="text-button danger-text" data-unlink="${esc(link.key)}">Unlink tag</button></div></div>`).join('') : '<p class="small quiet">No tags linked yet.</p>');
     document.querySelectorAll('[data-write]').forEach(button => { button.disabled = !canNFC(); });
     $('read-link').disabled = !canNFC() || !list.length; updateLinkPreview(); syncHome();
+    $('preview-tag-start').disabled = !canNFC() || nfcSession?.mode === 'preview';
+    if (!canNFC() && !nfcSession) $('preview-tag-status').textContent = 'Tag preview needs NFC-enabled Android Chrome.';
   }
   function updateLinkPreview() {
     const s = storyById($('link-story').value);
@@ -229,6 +258,40 @@
     $('linked-art').className = 'pair-art ' + coverHue(id); $('linked-art').innerHTML = storyArt(story);
     $('link-done-title').textContent = tested ? 'It works.' : 'Tag linked.';
     $('linked-story-display').textContent = tested ? 'That tag plays “' + story.title + '”.' : 'Test it, so you know it works before you hand it over.';
+  }
+  function announceTagPreview(message) {
+    const status = $('preview-tag-status');
+    status.textContent = message;
+    if (!StorySpeech.supported()) { status.textContent += ' Spoken feedback is unavailable on this device.'; return; }
+    try {
+      const utterance = new window.SpeechSynthesisUtterance(message);
+      utterance.rate = options.playbackRate || 1;
+      utterance.onerror = event => {
+        if (!['canceled','interrupted'].includes(event.error)) status.textContent += ' Spoken preview failed.';
+      };
+      window.speechSynthesis.speak(utterance);
+    } catch (error) {
+      status.textContent += ' Spoken preview could not start.';
+      throw error;
+    }
+  }
+  function previewTag(event, keys) {
+    const records = event.message?.records || [];
+    const link = keys.map(key => links.find(item => item.key === key)).find(Boolean);
+    const story = link && storyById(link.storyId);
+    const serial = typeof event.serialNumber === 'string' ? event.serialNumber.trim() : '';
+    const codeKey = (link?.key.startsWith('code:') ? link.key : keys.find(key => key.startsWith('code:'))) || '';
+    const identifiers = [];
+    if (serial) identifiers.push('serial number ' + serial);
+    if (codeKey) identifiers.push('tag code ' + codeKey.slice(5));
+    const id = identifiers.join('; ') || 'not provided by this tag or browser';
+    const detail = 'Tag ID: ' + id + '.';
+    if (story) return records.length
+      ? 'This tag is linked to “' + story.title + '”. ' + detail
+      : 'This tag has no written data, but its ID is linked to “' + story.title + '”. ' + detail;
+    return records.length
+      ? 'This tag contains data that is not linked to a story in this library. ' + detail
+      : 'This tag is blank and is not linked to a story in this library. ' + detail;
   }
   function openTagSetup(id, scan = true) {
     setTab('link', true); if (storyById(id)) $('link-story').value = id;
@@ -282,7 +345,9 @@
     $('app-theme').setAttribute('content', child && blackChild ? '#000000' : '#101817');
     $('parent-view').hidden = child; $('parent-view').inert = child; $('child-view').hidden = !child;
     $('child-content').hidden = child && blackChild; $('player').inert = child && blackChild;
+    $('child-playback-controls').hidden = !(child && blackChild && (options.showStop || options.showPause));
     $('child-stop-audio').hidden = !(child && blackChild && options.showStop);
+    $('child-pause-audio').hidden = !(child && blackChild && options.showPause);
     exitHold.cancel(); syncChildStory(); childStartUI();
   }
   async function listenForChildTags() {
@@ -363,12 +428,12 @@
   function playStory(id) { if (recordingBusy()) { tell('Stop recording before playing a story.'); return; } activeTagKey = null; const s = storyById(id); loadStory(s); if (child) childStatus('Your story: ' + s.title, false); return resumeAudio(); }
   async function playTagStory(id, key) {
     if (child && activeTagKey === key && selected?.id === id) {
-      const playing = selected.kind === 'text' ? speechPlayer.state === 'playing' : !audio.paused && !audio.ended;
       const paused = selected.kind === 'text' ? speechPlayer.state === 'paused' : audio.paused && !audio.ended && $('player-state').textContent === 'Paused';
-      if (playing && options.tapToPause) { if (selected.kind === 'text') speechPlayer.pause(); else audio.pause(); childStatus('Paused: ' + selected.title, false); return; }
-      if (paused) { await resumeAudio(); childStatus('Continuing: ' + selected.title, false); return; }
+      if (options.tapToStop && (isPlaying() || paused)) { stopChildStory(); return; }
+      if (isPlaying() && options.tapToPause) { pauseSelected(); childStatus('Paused: ' + selected.title); haptic('pause'); return; }
+      if (paused) { await resumeAudio(); childStatus('Continuing: ' + selected.title, false); haptic('tag'); return; }
     }
-    const playback = playStory(id); activeTagKey = key; await playback;
+    const playback = playStory(id); activeTagKey = key; await playback; haptic('tag');
   }
   function playerSpeechState(state) { $('player-state').textContent = state; const playing = speechPlayer.state === 'playing'; $('player-toggle').textContent = playing ? 'Pause' : 'Play'; $('player-toggle').setAttribute('aria-label', playing ? 'Pause story' : 'Play story'); syncNativeMedia(); if (playing && child && options.childScreen === 'black' && !blackChild) { blackChild = true; childPresentation(); $('child-exit').focus(); } if (state === 'Finished' && child) childStatus('Ready for another tag.', false); }
   function updateProgress() {
@@ -532,7 +597,8 @@
     e.preventDefault(); requireDB();
     if (recordingBusy() || importing) throw new Error('Finish recording or importing before saving.');
     const title = $('story-title').value.trim(); if (!title) throw new Error('Give your story a name.');
-    const story = { id: crypto.randomUUID ? crypto.randomUUID() : 's-' + Date.now() + '-' + Math.random().toString(36).slice(2), title, symbol: 'book', source: 'personal', created: Date.now() };
+    const story = { id: crypto.randomUUID ? crypto.randomUUID() : 's-' + Date.now() + '-' + Math.random().toString(36).slice(2), title, symbol: 'book', source: 'personal', origin: sourceMode === 'write' ? 'written' : sourceMode === 'import' ? 'uploaded' : 'recorded', created: Date.now() };
+    if (sourceMode === 'import') story.sourceName = draft.name;
     if (draftImage) story.image = draftImage;
     if (sourceMode === 'write') {
       const text = $('story-written').value.trim(); if (!text) throw new Error('Write a little story first.');
@@ -566,11 +632,11 @@
   }
   async function removeStory() {
     const s = editing;
-    if (!(await confirmAction('Delete “' + s.title + '” and its tag links from this device? Export a backup first if you want to keep it.', 'Delete story'))) return;
+    if (!(await confirmAction('Delete “' + s.title + '” and unlink all of its tags from this device? The physical tags keep their current data. Export a backup first if you want to keep this story.', 'Delete story and links'))) return;
     if (s.catalogId && !removedExamples.includes(s.catalogId)) removedExamples.push(s.catalogId);
     await DB.deleteStory(s.id, links, removedExamples); $('edit-dialog').close();
     if (selected?.id === s.id) closePlayer();
-    await refresh(); tell('Story and its links deleted from this device.'); updateStorage();
+    await refresh(); tell('Story and all its StoryTouch tag links deleted from this device. Physical tag data was not erased.'); updateStorage();
   }
   function download(blob, filename) {
     const url = URL.createObjectURL(blob), a = document.createElement('a');
@@ -581,7 +647,7 @@
     requireDB(); if (!storyById(storyId)) throw new Error('Choose a story first.');
     const prior = links.find(l => l.key === key);
     if (prior && prior.storyId !== storyId && !(await confirmAction('This tag already plays “' + storyById(prior.storyId)?.title + '”. Link it to the selected story instead?', 'Replace link'))) { wizardIdle(); return false; }
-    await DB.putLink({ key, storyId }); await refresh(); wizardSuccess(storyId); cue(); return true;
+    await DB.putLink({ key, storyId }); await refresh(); wizardSuccess(storyId); cue(); haptic('saved'); return true;
   }
   function canNFC() { return window.isSecureContext && typeof window.NDEFReader === 'function'; }
   function nfcError(error) {
@@ -594,16 +660,27 @@
   function stopNFC() {
     const old = nfcSession; nfcSession = null; old?.controller.abort();
     clearTimeout(scanHintTimer); $('cancel-link-scan').hidden = true; $('read-link').hidden = false;
+    if (old?.mode === 'preview') {
+      $('preview-tag-cancel').hidden = true; $('preview-tag-start').disabled = !canNFC();
+      $('preview-tag-status').textContent = 'Preview stopped. Tap Preview a tag to scan again.';
+    }
     $('tag-visual').classList.remove('is-scanning'); $('read-link').disabled = !canNFC() || !stories().length;
   }
   async function startScan(mode) {
     if (!canNFC()) throw new Error('Reading tags needs Android Chrome on a phone with NFC.');
     if (mode !== 'child') requireDB();
-    if (mode !== 'child' && !storyById($('link-story').value)) throw new Error('Choose a story first.');
+    if (mode !== 'child' && mode !== 'preview' && !storyById($('link-story').value)) throw new Error('Choose a story first.');
     stopNFC();
-    const session = { controller: new AbortController(), reader: new NDEFReader(), mode, ready: false, lastKey: '', lastTime: 0, storyId: $('link-story').value };
+    const session = { controller: new AbortController(), reader: new NDEFReader(), mode, ready: false, lastKey: '', lastTime: 0, lastUnknownTime: 0, storyId: mode === 'preview' ? null : $('link-story').value };
     nfcSession = session;
-    session.reader.onreadingerror = () => { if (nfcSession !== session) return; const m = 'Tag could not be read. Try an NDEF tag and hold it closer.'; mode === 'child' ? childStatus(m) : ($('link-scan-state').textContent = m); };
+    if (mode === 'preview') { $('preview-tag-start').disabled = true; $('preview-tag-cancel').hidden = false; $('preview-tag-status').textContent = 'Hold any tag near the back of your phone.'; }
+    session.reader.onreadingerror = () => {
+      if (nfcSession !== session) return;
+      const m = 'Tag could not be read. Try an NDEF tag and hold it closer.';
+      if (mode === 'child') childStatus(m);
+      else if (mode === 'preview') $('preview-tag-status').textContent = m;
+      else $('link-scan-state').textContent = m;
+    };
     session.reader.onreading = async event => {
       if (nfcSession !== session || document.hidden) return;
       try {
@@ -612,30 +689,36 @@
           const key = keys[0];
           if (!key) { $('link-scan-state').textContent = 'This tag can’t be read. Try a different tag, such as an NTAG213 sticker.'; return; }
           stopNFC(); await saveLink(key, session.storyId);
+        } else if (mode === 'preview') {
+          const message = previewTag(event, keys);
+          stopNFC(); haptic('tag'); announceTagPreview(message);
         } else {
           const match = keys.map(k => links.find(l => l.key === k)).find(Boolean);
-          if (!match) { if (mode === 'test') $('link-scan-state').textContent = 'That tag has no story yet. Try the one you just linked.'; else { childStatus('This tag has no story yet. Ask a grown-up to link it.'); if (blackChild) signalUnknownTag(); } return; }
+          if (!match) { if (mode === 'test') $('link-scan-state').textContent = 'That tag has no story yet. Try the one you just linked.'; else { childStatus('This tag has no story yet. Ask a grown-up to link it.'); if (blackChild) signalUnknownTag(); const now = Date.now(); if (now - session.lastUnknownTime >= 1000) { haptic('unknown'); session.lastUnknownTime = now; } } return; }
           if (mode === 'test') { if (match.storyId !== session.storyId) { $('link-scan-state').textContent = 'That tag plays a different story. Try the one you just linked.'; return; } stopNFC(); wizardSuccess(match.storyId, true); }
           const now = Date.now(), duplicate = session.lastKey === match.key && now - session.lastTime < 1200;
           session.lastKey = match.key; session.lastTime = now;
           if (duplicate) return;
-          if (mode === 'child') { hideChildReady(); await playTagStory(match.storyId, match.key); } else await playStory(match.storyId);
+          if (mode === 'child') { hideChildReady(); await playTagStory(match.storyId, match.key); }
+          else { await playStory(match.storyId); haptic('tag'); }
         }
       } catch (error) { report(error); }
     };
     if (mode === 'child') { childStatus('Starting NFC…', false); }
+    else if (mode === 'preview') $('preview-tag-status').textContent = 'Starting NFC…';
     else { $('cancel-link-scan').hidden = false; $('read-link').hidden = true; $('tag-visual').classList.remove('is-error'); $('tag-visual').classList.add('is-scanning'); wizardState(2, mode === 'test' ? 'Tap the same tag again.' : 'Hold a tag to the back of your phone.'); $('link-scan-state').textContent = 'Starting NFC…'; $('cancel-link-scan').focus({ preventScroll: true }); }
     try {
       await session.reader.scan({ signal: session.controller.signal });
       if (nfcSession !== session) return;
       session.ready = true;
       if (mode === 'child') childStatus('Listening. Tap a tag to the back of the phone.', false);
+      else if (mode === 'preview') $('preview-tag-status').textContent = 'Listening. Tap any tag to identify it.';
       else {
         $('link-scan-state').textContent = mode === 'test' ? 'The story will play when it works.' : 'Keep it still for a moment.';
         // The reader's position differs between phones, so an idle scan needs a nudge rather than silence.
         scanHintTimer = setTimeout(() => { if (nfcSession === session) $('link-scan-state').textContent = 'Nothing yet. Slide the tag slowly around the back of the phone. A thick case can block it.'; }, 10000);
       }
-      cue();
+      cue(); haptic('listening');
       return session;
     } catch (error) { if (nfcSession !== session || error.name === 'AbortError') return; stopNFC(); if (mode === 'child') childStatus('Tag listening could not start.', false); throw new Error(nfcError(error)); }
   }
@@ -649,7 +732,7 @@
     try {
       await new NDEFReader().write({ records: [{ recordType: 'url', data: url }] }, { overwrite: true, signal: session.controller.signal });
       if (nfcSession !== session) return;
-      stopNFC(); wizardSuccess(links.find(l => l.key === key).storyId); tell('Tag written. Tap it again to test.'); cue();
+      stopNFC(); wizardSuccess(links.find(l => l.key === key).storyId); tell('Tag written. Tap it again to test.'); cue(); haptic('saved');
     } catch (error) { if (nfcSession !== session || error.name === 'AbortError') return; stopNFC(); wizardFailed(new Error(nfcError(error))); }
   }
   function playCode(raw, autoplay = true) {
@@ -682,6 +765,8 @@
     if (!(await confirmAction('Restore ' + data.stories.length + ' stories and ' + data.links.length + ' tag links? Other stories stay. Matching story IDs and tag codes are replaced.', 'Restore backup'))) return;
     const rows = await Promise.all(data.stories.map(async s => {
       const meta = { id: s.id, title: s.title, symbol: 'book', transcript: s.transcript, duration: s.duration, source: s.source === 'example' ? 'example' : 'personal', created: Number.isFinite(s.created) ? s.created : Date.now() };
+      if (s.origin !== undefined) meta.origin = s.origin;
+      if (s.sourceName !== undefined) meta.sourceName = s.sourceName;
       if (s.image) { const binary = atob(s.image.data), bytes = Uint8Array.from(binary, value => value.charCodeAt(0)); meta.image = await readPicture(new Blob([bytes], { type: s.image.mime })); }
       if (typeof s.catalogId === 'string' && /^[a-zA-Z0-9_-]{1,100}$/.test(s.catalogId)) meta.catalogId = s.catalogId;
       if (typeof s.exampleFile === 'string') meta.exampleFile = s.exampleFile.slice(0,1000);
@@ -821,8 +906,10 @@
   on('next-step','click', nextStep); on('step-listen','click', nextStep);
   on('app-error','click', clearError);
   on('install-nudge-button','click', () => pwa.install());
+  on('preview-tag-start','click', () => startScan('preview').catch(error => { $('preview-tag-status').textContent = error.message; throw error; }));
+  on('preview-tag-cancel','click', () => { stopNFC(); $('preview-tag-status').textContent = 'Tag preview cancelled.'; });
   on('add-back','click', () => setTab('library', true)); on('link-back','click', () => setTab('library', true));
-  ['child-screen-now','child-screen-black','child-keep-awake','child-tap-pause','child-touch-pause','child-show-stop','exit-method-hold','exit-method-taps','exit-hold-seconds','exit-tap-count'].forEach(id => on(id, 'change', saveChildSettings));
+  ['child-screen-now','child-screen-black','child-keep-awake','child-tap-pause','child-tap-stop','child-touch-action','child-show-stop','child-show-pause','exit-method-hold','exit-method-taps','exit-hold-seconds','exit-tap-count'].forEach(id => on(id, 'change', saveChildSettings));
   on('step-add', 'click', () => setTab('add', true));
   on('step-link', 'click', () => openTagSetup($('link-story').value));
   on('link-story','change', () => { stopNFC(); updateLinkPreview(); wizardIdle(); return autoLinkScan(); });
@@ -847,7 +934,14 @@
         try { await navigator.clipboard.writeText(url); tell('Tag URL copied. This URL contains a code, not your audio.'); }
         catch (_) { tell('Tag URL: ' + url); }
       }
-      if (b.dataset.unlink && await confirmAction('Remove this tag link from this device? The story and the NFC tag’s contents stay.', 'Unlink tag')) { await DB.deleteLink(b.dataset.unlink); await refresh(); tell('Tag link removed.'); }
+      if (b.dataset.unlink) {
+        const link = links.find(item => item.key === b.dataset.unlink);
+        const storyTitle = storyById(link?.storyId)?.title || 'this story';
+        const id = tagIdentifier(b.dataset.unlink);
+        if (await confirmAction('Unlink tag “' + id + '” from “' + storyTitle + '”? This removes only the StoryTouch association. The story stays in your library, and data on the physical tag is not erased.', 'Unlink tag')) {
+          await DB.deleteLink(b.dataset.unlink); await refresh(); tell('Tag unlinked. The story and physical tag data are unchanged.');
+        }
+      }
     };
     run().catch(report);
   });
@@ -865,7 +959,12 @@
   on('player-drawer-toggle', 'click', () => setPlayerDrawer(!playerDrawerOpen));
   on('player-toggle', 'click', () => { if (selected?.kind === 'text') { if (speechPlayer.state === 'playing') speechPlayer.pause(); else return resumeAudio(); } else { if (audio.paused) return resumeAudio(); audio.pause(); } });
   on('player-restart', 'click', () => { if (selected?.kind === 'text') speechPlayer.stop(); else audio.currentTime = 0; return resumeAudio(); });
-  on('player-stop', 'click', () => child ? stopAudio() : closePlayer()); on('child-stop-audio', 'click', () => { stopAudio(); childStatus('Stopped.', false); });
+  on('player-stop', 'click', () => child ? stopChildStory() : closePlayer());
+  on('child-stop-audio', 'click', stopChildStory);
+  on('child-pause-audio', 'click', () => {
+    if (isPlaying()) pauseChildStory();
+    else if ($('player-state').textContent === 'Paused') { haptic('tag'); return resumeAudio(); }
+  });
   on('player-seek', 'input', () => { const d = Number.isFinite(audio.duration) ? audio.duration : selected?.duration; if (d) audio.currentTime = Number($('player-seek').value) / 100 * d; });
   on('player-speed', 'change', async () => { const rate = Number($('player-speed').value); audio.playbackRate = rate; options.playbackRate = rate; saveOptions(); if (selected) { selected.rate = rate; if (selected.kind === 'text') speechPlayer.setRate(rate); await DB.putStory(selected); await refresh(); } });
   audio.addEventListener('timeupdate', updateProgress); audio.addEventListener('loadedmetadata', updateProgress);
@@ -882,6 +981,7 @@
   on('backup-export', 'click', exportBackup); on('backup-import', 'click', () => $('backup-file').click()); on('backup-file', 'change', restoreBackup);
   on('persist-storage', 'click', async () => { if (!navigator.storage?.persist) throw new Error('This browser does not offer a persistent-storage request. Keep an exported backup.'); const granted = await navigator.storage.persist(); tell(granted ? 'The browser agreed to keep local storage. Keep an exported backup too.' : 'The browser did not grant persistent storage. Export regular backups.'); await updateStorage(); });
   on('feedback-sounds', 'change', () => { options.sounds = $('feedback-sounds').checked; saveOptions(); if (options.sounds) cue(); });
+  on('feedback-haptics', 'change', () => { options.haptics = $('feedback-haptics').checked; saveOptions(); if (options.haptics) haptic('tag'); });
   
   
   on('install-app', 'click', () => pwa.install());
@@ -918,9 +1018,9 @@
   window.addEventListener('hashchange', () => handleHash().catch(report));
   async function init() {
     try { const saved = JSON.parse(localStorage.getItem('storytouch-options')); if (saved) options = StoryChild.preferences(saved); } catch (_) {}
-    $('feedback-sounds').checked = options.sounds;
+    $('feedback-sounds').checked = options.sounds; $('feedback-haptics').checked = options.haptics;
     $('read-link').disabled = !canNFC(); wizardIdle();
-    try { await DB.open(); dbReady = true; const preferences = await DB.getSetting('preferences'); if (preferences) { options = StoryChild.preferences(preferences); $('feedback-sounds').checked = options.sounds; } await refresh(); await syncExamples(); await refresh(); await restoreDraft(); } catch (error) { render(); report(error); }
+    try { await DB.open(); dbReady = true; const preferences = await DB.getSetting('preferences'); if (preferences) { options = StoryChild.preferences(preferences); $('feedback-sounds').checked = options.sounds; $('feedback-haptics').checked = options.haptics; } await refresh(); await syncExamples(); await refresh(); await restoreDraft(); } catch (error) { render(); report(error); }
     syncChildSettings();
     appInitialized = true; childStartUI();
     populateVoices(); setSource(sourceMode, false); updateStorage(); pwa.init();

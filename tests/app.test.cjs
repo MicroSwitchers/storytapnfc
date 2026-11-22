@@ -8,6 +8,7 @@ const C = require('../core.js');
 function fixture(rows = [], links = []) {
   const elements = new Map(), events = new Map(), documentEvents = new Map(), storage = new Map(), readers = [];
   let data = rows, linkData = links, stopped = 0, meterStopped = 0;
+  const vibrations = [];
   function element(id) {
     if (!elements.has(id)) {
       const handlers = new Map(), classes = new Set();
@@ -41,7 +42,7 @@ function fixture(rows = [], links = []) {
   } },
     StoryRecording: { async openMicrophone() { return stream; }, createRecorder() { return recorder; }, monitor() { return () => { meterStopped++; }; } },
     document: { documentElement: element('html'), body: element('body'), hidden: false, getElementById: element, querySelector: element, querySelectorAll() { return []; }, addEventListener(name, fn) { documentEvents.set(name, fn); } },
-    navigator: { mediaDevices: { getUserMedia() {} } }, isSecureContext: true, MediaRecorder: function () {},
+    navigator: { mediaDevices: { getUserMedia() {} }, vibrate(pattern) { vibrations.push(pattern); return true; } }, isSecureContext: true, MediaRecorder: function () {},
     addEventListener(name, callback) { events.set(name, callback); }, Blob, TextEncoder, AbortController, performance, URLSearchParams,
     URL: class extends URL { static createObjectURL() { return 'blob:test'; } static revokeObjectURL() {} },
     location: { href: 'https://storytouch.test/index.html' },
@@ -57,7 +58,7 @@ function fixture(rows = [], links = []) {
   let script = fs.readFileSync(path.join(__dirname, '../app.js'), 'utf8');
   script = script.replace('init().catch(report);', 'dbReady = true; appInitialized = true; globalThis.hooks = { setPlayerDrawer, startRecording, stopRecording, syncExamples, refresh, setChild, saveChildSettings, playTagStory, startScan, stopNFC, exitHold, handleHash, canUpdate: () => pwa.canUpdate(), state: () => ({ recordingState, draft, child, blackChild, options, nfcSession, selected }), setRows: rows => { customs = rows; }, configure: saved => { options = StoryChild.preferences(saved); }, setInitialized: value => { appInitialized = value; childStartUI(); } };');
   vm.runInNewContext(script, root); root.hooks.setRows(rows);
-  return { root, recorder, stream, track, events, documentEvents, element, readers, storage, counts: () => ({ stopped, meterStopped }), data: () => data, links: () => linkData };
+  return { root, recorder, stream, track, events, documentEvents, element, readers, vibrations, storage, counts: () => ({ stopped, meterStopped }), data: () => data, links: () => linkData };
 }
 test('stop waits for the final encoded chunk and releases the microphone after finalization', async () => {
   const f = fixture(); await f.root.hooks.startRecording(); f.recorder.chunk('first');
@@ -189,6 +190,61 @@ test('a page restored from browser back-forward cache restarts its former child 
 function audioRows(kind = 'audio') {
   return [{ id: 'bell', title: 'Bell song', kind, symbol: 'star', source: 'personal', created: 1, text: 'Let us sing.', blob: new Blob(['audio']) }];
 }
+test('story cards identify device storage and source, while linked tags expose their unlink action and ID', async () => {
+  const story = { ...audioRows()[0], origin: 'uploaded', sourceName: 'bedtime-song.mp3', created: 1000 };
+  const f = fixture([story], [{ key: 'code:BELL', storyId: story.id }]); await f.root.hooks.refresh();
+  const card = f.element('story-grid').innerHTML, tags = f.element('linked-tags').innerHTML;
+  assert.match(card, /Stored on this device in StoryTouch/); assert.match(card, /Uploaded file: bedtime-song\.mp3/);
+  assert.match(card, /Edit or delete Bell song/);
+  assert.match(tags, /Tag ID: BELL/); assert.match(tags, /Unlink tag/);
+  assert.match(tags, /physical tag is not erased/);
+});
+test('tag preview speaks and displays linked, blank, and unassociated tag results', async () => {
+  async function preview(event, rows = [], links = []) {
+    const f = fixture(rows, links); await f.root.hooks.refresh(); await f.root.hooks.startScan('preview');
+    await f.readers[0].onreading(event);
+    return { text: f.element('preview-tag-status').textContent, aborted: f.readers[0].signal.aborted };
+  }
+  const linked = await preview({ serialNumber: '04:AA', message: { records: [{ recordType: 'text', data: new TextEncoder().encode('BELL') }] } },
+    audioRows(), [{ key: 'code:BELL', storyId: 'bell' }]);
+  assert.match(linked.text, /linked to “Bell song”/); assert.match(linked.text, /serial number 04:AA/); assert.match(linked.text, /tag code BELL/);
+  assert.equal(linked.aborted, true);
+  const blank = await preview({ serialNumber: '04:BB', message: { records: [] } });
+  assert.match(blank.text, /blank/); assert.match(blank.text, /04:BB/);
+  const unknown = await preview({ message: { records: [{ recordType: 'text', data: new TextEncoder().encode('UNKNOWN') }] } });
+  assert.match(unknown.text, /contains data that is not linked/); assert.match(unknown.text, /tag code UNKNOWN/);
+});
+test('haptic feedback distinguishes ready, recognized, and unknown tags and can be disabled', async () => {
+  const f = fixture(audioRows(), [{ key: 'code:BELL', storyId: 'bell' }]); f.root.hooks.configure({ sounds: false });
+  await f.root.hooks.refresh(); await f.root.hooks.setChild(true);
+  assert.deepEqual(Array.from(f.vibrations[0]), [18], 'listening start should give a short confirmation');
+  const event = { message: { records: [{ recordType: 'text', data: new TextEncoder().encode('BELL') }] } };
+  await f.readers[0].onreading(event);
+  assert.deepEqual(Array.from(f.vibrations[1]), [32], 'a recognized tag should give a distinct confirmation');
+  await f.element('child-pause-audio').emit('click');
+  assert.deepEqual(Array.from(f.vibrations[2]), [18, 35, 18], 'pause should have its own feedback');
+  await f.element('child-pause-audio').emit('click');
+  assert.deepEqual(Array.from(f.vibrations[3]), [32], 'resume should confirm playback');
+  await f.element('child-stop-audio').emit('click');
+  assert.deepEqual(Array.from(f.vibrations[4]), [45], 'stop should have its own feedback');
+  await f.readers[0].onreading(event);
+  assert.equal(f.vibrations.length, 5, 'duplicate reads should not vibrate');
+
+  const unknown = fixture(); await unknown.root.hooks.setChild(true);
+  await unknown.readers[0].onreading({ message: { records: [] } });
+  assert.deepEqual(Array.from(unknown.vibrations[1]), [22, 50, 22], 'an unlinked tag should give a distinct warning');
+  await unknown.readers[0].onreading({ message: { records: [] } });
+  assert.equal(unknown.vibrations.length, 2, 'repeated unknown reads should be rate limited');
+
+  const disabled = fixture(); disabled.element('feedback-haptics').checked = false;
+  await disabled.element('feedback-haptics').emit('change');
+  await disabled.root.hooks.setChild(true);
+  assert.equal(disabled.vibrations.length, 0, 'disabled haptics should stay silent');
+
+  const unsupported = fixture(); unsupported.root.navigator.vibrate = undefined;
+  await unsupported.root.hooks.setChild(true);
+  assert.equal(unsupported.root.hooks.state().child, true, 'unsupported vibration should not prevent NFC listening');
+});
 test('optional repeat-tag pause and resume preserve the audio position; another tag restarts', async () => {
   const f = fixture(audioRows()); f.root.hooks.configure({ tapToPause: true }); await f.root.hooks.setChild(true);
   await f.root.hooks.playTagStory('bell', 'code:BELL'); f.element('story-audio').currentTime = 12;
@@ -202,6 +258,24 @@ test('repeat-tag pause also supports written stories', async () => {
   await f.root.hooks.playTagStory('bell', 'code:BELL'); assert.equal(f.element('player-state').textContent, 'Playing');
   await f.root.hooks.playTagStory('bell', 'code:BELL'); assert.equal(f.element('player-state').textContent, 'Paused');
   await f.root.hooks.playTagStory('bell', 'code:BELL'); assert.equal(f.element('player-state').textContent, 'Playing');
+});
+test('repeat-tag stop takes precedence over pause and resets both story types without leaving child mode', async () => {
+  for (const kind of ['audio', 'text']) {
+    const f = fixture(audioRows(kind)); f.root.hooks.configure({ tapToPause: true, tapToStop: true }); await f.root.hooks.setChild(true);
+    await f.root.hooks.playTagStory('bell', 'code:BELL');
+    if (kind === 'audio') f.element('story-audio').currentTime = 12;
+    await f.root.hooks.playTagStory('bell', 'code:BELL');
+    assert.equal(f.root.hooks.state().child, true);
+    if (kind === 'audio') {
+      assert.equal(f.element('story-audio').paused, true); assert.equal(f.element('story-audio').currentTime, 0);
+    } else assert.equal(f.element('player-state').textContent, 'Stopped');
+    await f.root.hooks.playTagStory('bell', 'code:BELL');
+    assert.equal(f.element('story-audio').paused, kind === 'text');
+    await f.element('child-pause-audio').emit('click');
+    await f.root.hooks.playTagStory('bell', 'code:BELL');
+    assert.equal(f.element('player-state').textContent, 'Stopped');
+    assert.equal(f.root.hooks.state().nfcSession.controller.signal.aborted, false);
+  }
 });
 test('repeat-tag behavior stays restart-by-default and finished audio restarts rather than pauses', async () => {
   const f = fixture(audioRows()); await f.root.hooks.setChild(true);
@@ -220,13 +294,15 @@ test('rapid duplicate NFC reads do not immediately pause a new story and hidden 
   assert.equal(f.element('story-audio').paused, false);
   f.root.document.hidden = false; await f.readers[0].onreading(event); assert.equal(f.element('story-audio').paused, true);
 });
-test('all child settings save together without dropping voice or playback preferences', () => {
+test('all child settings save together without dropping voice or playback preferences', async () => {
   const f = fixture(); f.root.hooks.configure({ spoken: true, playbackRate: .9 });
-  f.element('child-screen-black').checked = true; f.element('child-touch-pause').checked = true;
-  f.element('child-keep-awake').checked = true; f.element('child-tap-pause').checked = true;
-  f.root.hooks.saveChildSettings(); const o = f.root.hooks.state().options;
-  assert.equal(o.childScreen, 'black'); assert.equal(o.tapToPause, true); assert.equal(o.keepAwake, true);
-  assert.equal(o.touchToPause, true); assert.equal(o.childLock, true); assert.equal(Object.hasOwn(o, 'spoken'), false); assert.equal(o.playbackRate, .9);
+  f.element('child-screen-black').checked = true; f.element('child-touch-action').value = 'stop';
+  f.element('child-show-stop').checked = true; f.element('child-show-pause').checked = true;
+  f.element('child-keep-awake').checked = true; f.element('child-tap-pause').checked = true; f.element('child-tap-stop').checked = true;
+  await f.element('child-tap-stop').emit('change'); const o = f.root.hooks.state().options;
+  assert.equal(o.childScreen, 'black'); assert.equal(o.tapToPause, true); assert.equal(o.tapToStop, true); assert.equal(o.keepAwake, true);
+  assert.equal(o.touchAction, 'stop'); assert.equal(o.showStop, true); assert.equal(o.showPause, true);
+  assert.equal(o.childLock, true); assert.equal(Object.hasOwn(o, 'spoken'), false); assert.equal(o.playbackRate, .9);
 });
 test('the installed Add story shortcut opens its intended parent panel', async () => {
   const f = fixture(); f.root.location.hash = '#view=add'; await f.root.hooks.handleHash();
@@ -256,18 +332,20 @@ test('child mode always locks legacy unlocked preferences and tucks the player d
   await f.root.hooks.setChild(false, true); assert.equal(f.element('player-drawer-body').hidden, false);
 });
 
-test('screen touch pauses audio and written stories in child mode, leaving the NFC session running', async () => {
+test('configured screen-touch Pause works for audio and written stories, leaving NFC running', async () => {
   for (const kind of ['audio', 'text']) {
-    const f = fixture(audioRows(kind)); await f.root.hooks.setChild(true); await f.root.hooks.playTagStory('bell', 'code:BELL');
+    const f = fixture(audioRows(kind)); f.root.hooks.configure({ touchAction: 'pause' });
+    await f.root.hooks.setChild(true); await f.root.hooks.playTagStory('bell', 'code:BELL');
     f.documentEvents.get('pointerdown')({ button: 0, target: { closest() { return null; } }, preventDefault() {} });
     assert.equal(f.element('player-state').textContent, 'Paused'); assert.equal(f.readers[0].signal.aborted, false);
   }
 });
 test('screen touch never pauses adult playback and respects the saved child-mode opt-out', async () => {
   const f = fixture(audioRows()); await f.root.hooks.playTagStory('bell', 'code:BELL');
+  assert.equal(f.root.hooks.state().options.touchAction, 'none');
   const touch = () => f.documentEvents.get('pointerdown')({ button: 0, target: { closest() { return null; } }, preventDefault() {} });
   touch(); assert.equal(f.element('story-audio').paused, false);
-  f.root.hooks.configure({ touchToPause: false }); await f.root.hooks.setChild(true); await f.root.hooks.playTagStory('bell', 'code:BELL');
+  f.root.hooks.configure({ touchAction: 'none' }); await f.root.hooks.setChild(true); await f.root.hooks.playTagStory('bell', 'code:BELL');
   touch(); assert.equal(f.element('story-audio').paused, false);
 });
 
@@ -286,15 +364,33 @@ test('now-playing mode shows only the tagged story and its associated text and i
   assert.equal(f.element('child-story-text').textContent, 'A bell rings softly.'); assert.match(f.element('child-art').innerHTML, /<img/);
   assert.equal(f.element('player-drawer-body').hidden, false);
 });
-test('optional red Stop resets media without stopping NFC or leaving dark mode', async () => {
-  const f = fixture(audioRows()); f.root.hooks.configure({ showStop: true }); await f.root.hooks.setChild(true);
-  assert.equal(f.element('child-stop-audio').hidden, false); await f.root.hooks.playTagStory('bell', 'code:BELL');
+test('default red Stop resets media without stopping NFC or leaving dark mode', async () => {
+  const f = fixture(audioRows()); await f.root.hooks.setChild(true);
+  assert.equal(f.element('child-stop-audio').hidden, false); assert.equal(f.element('child-pause-audio').hidden, true);
+  await f.root.hooks.playTagStory('bell', 'code:BELL');
   f.element('story-audio').currentTime = 8; await f.element('child-stop-audio').emit('click');
   assert.equal(f.element('story-audio').paused, true); assert.equal(f.element('story-audio').currentTime, 0);
   assert.equal(f.readers[0].signal.aborted, false); assert.equal(f.root.hooks.state().blackChild, true);
 });
+test('optional Pause and Resume work with either story type and screen-touch Stop resets playback', async () => {
+  for (const kind of ['audio', 'text']) {
+    const f = fixture(audioRows(kind)); f.root.hooks.configure({ showStop: false, showPause: true, touchAction: 'stop' });
+    await f.root.hooks.setChild(true);
+    const pause = f.element('child-pause-audio'), label = f.element('child-pause-label'), audio = f.element('story-audio');
+    assert.equal(f.element('child-stop-audio').hidden, true); assert.equal(pause.hidden, false); assert.equal(pause.disabled, true);
+    await f.root.hooks.playTagStory('bell', 'code:BELL'); audio.currentTime = 8;
+    assert.equal(pause.disabled, false); assert.equal(label.textContent, 'Pause');
+    await pause.emit('click'); assert.equal(f.element('player-state').textContent, 'Paused'); assert.equal(label.textContent, 'Resume');
+    await pause.emit('click'); assert.equal(f.element('player-state').textContent, 'Playing'); assert.equal(audio.currentTime, 8);
+    f.documentEvents.get('pointerdown')({ button: 0, target: { closest() { return null; } }, preventDefault() {} });
+    assert.equal(f.element('player-state').textContent, 'Stopped'); assert.equal(pause.disabled, true); assert.equal(audio.currentTime, 0);
+    assert.equal(f.readers[0].signal.aborted, false);
+    await f.root.hooks.playTagStory('bell', 'code:BELL'); assert.equal(label.textContent, 'Pause'); assert.equal(audio.currentTime, 0);
+  }
+});
 test('a tag resumes a screen-paused story at the same position even when repeat-tag pause is off', async () => {
-  const f = fixture(audioRows()); await f.root.hooks.setChild(true); await f.root.hooks.playTagStory('bell', 'code:BELL');
+  const f = fixture(audioRows()); f.root.hooks.configure({ touchAction: 'pause' });
+  await f.root.hooks.setChild(true); await f.root.hooks.playTagStory('bell', 'code:BELL');
   f.element('story-audio').currentTime = 12;
   f.documentEvents.get('pointerdown')({ button: 0, target: { closest() { return null; } }, preventDefault() {} });
   await f.root.hooks.playTagStory('bell', 'code:BELL'); assert.equal(f.element('story-audio').paused, false);

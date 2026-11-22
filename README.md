@@ -1,4 +1,4 @@
-# StoryTouch 2.1.0
+# StoryTouch 2.2.2
 
 An object becomes a story. Personal audio and pictures stay in this browser.
 
@@ -14,13 +14,15 @@ The home screen shows three steps (Story, Tag, Listen), marks what is done, and 
 
 ## The child’s screen
 
-**Dark screen** is the default: a short picture of the tap and the parent exit, then pure black and a small parent button at the bottom. A tag with no story shows a brief tag symbol and a low tone, so it does not look like a broken phone. Settings can add a larger red Stop button; it stops media while NFC keeps listening. The compact Parents button has a visible border and label.
+**Dark screen** is the default: a short picture of the tap and the parent exit, then pure black and a small parent button at the bottom. A tag with no story shows a brief tag symbol and a low tone, so it does not look like a broken phone. The red Stop button is on by default and resets playback while NFC keeps listening. Parents can turn it off or enable a separate Pause/Resume button under Reading screen.
 
 **Now playing** shows only the tagged story, its picture and accompanying words if provided, and playback controls. It never presents a book selector.
 
 In Settings, set the parent button to a **2–5 second hold** or **3–5 consecutive taps**. A pause of more than one second resets a tap sequence; an incomplete hold cancels. Keyboard Space/Enter can hold the handle. The default is a three-second hold. A gesture is an accidental-exit guard, not adult authentication.
 
-Touch screen to pause is on by default and can be disabled under Listening preferences. Retapping the same object resumes a paused story. Tap the same tag to pause is a separate option, off by default; without it, retapping a playing story restarts it. Stop resets playback.
+Under Reading screen, the default touch action is Do nothing; Pause story and Stop story are optional. Retapping the same tag resumes a paused story or starts a stopped story from the beginning. Tap the same tag to pause and Tap the same tag to stop are separate listening preferences, both off by default. With both off, retapping a playing story restarts it.
+
+Listening preferences include gentle feedback sounds and short vibration cues for NFC listening, recognized or unlinked tags, playback controls, and successful tag linking. Vibration is on by default where supported and can be turned off separately from sounds.
 
 ## Phone setup
 
@@ -44,7 +46,7 @@ Pictures are optional JPG, PNG, WebP, GIF or AVIF files up to 5 MB and 32 millio
 
 ## Settings and backups
 
-Settings holds screen choices, parent-handle gestures and the optional Stop button. Listening preferences, linked tags, backup tools and app installation/offline controls are tucked into disclosure rows.
+Settings holds reading screen choices, playback controls, touch behavior, and the Parent exit gesture. Listening preferences, including vibration feedback, linked tags, backup tools and app installation/offline controls are tucked into disclosure rows.
 
 Export a backup before changing browser, device or site address, and before clearing site data. A backup includes audio, optional pictures, words, tag links and preferences. Restore merges stories and replaces matching IDs/tag codes after confirmation. The current restore-file limit is 285 MB. StoryTouch does not upload personal recordings or pictures. Device speech services may process online voices.
 

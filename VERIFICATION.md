@@ -1,6 +1,20 @@
-# StoryTouch 2.1.0 verification
+# StoryTouch verification
 
-## Release checks
+## 2.2.2
+
+Haptic preferences default on and accept a saved opt-out. Simulated NFC checks cover listening-ready, recognized-tag, unknown-tag, pause, stop, and resume feedback; suppress duplicate-read vibration; and confirm haptics still work with sounds off and remain silent when disabled. Physical vibration behavior depends on the device and browser.
+
+## 2.2.1
+
+107 Node tests passed. Changed application JavaScript passed syntax checks. Story cards identify on-device storage and source details; management instructions distinguish unlinking a tag from deleting a story. Tag-preview outcomes for linked, blank, and unassociated tags are covered by simulated NFC tests. Physical NFC and spoken output still require an NFC-enabled Android device.
+
+## 2.2.0
+
+104 Node tests and 6 Python tests passed. All 21 JavaScript files passed syntax checks.
+
+Chrome 157 on localhost passed the child-mode, mobile layout, recording, and PWA online/offline checks. The child-mode checks used simulated NFC and covered the default red Stop button, optional Pause/Resume, all three screen-touch settings, parent exit gestures, and backup restoration. A separate check used browser pointer events and real audio to verify the on-screen playback controls. Exiting browser fullscreen kept reading mode locked. Parent panels fit at widths of 320, 390, 768, and 1200 pixels. The app also reloaded and played saved audio after the local server stopped and browser networking was disabled.
+
+## 2.1.0 release checks
 
 103 Node tests and 6 Python tests passed (109 total).
 
@@ -9,7 +23,7 @@
 
 All application and browser-fixture JavaScript passed syntax checks. Python helpers were parsed without creating bytecode. FILES.sha256 covers the release files.
 
-## Browser verification
+## 2.1.0 browser verification
 
 Verified on 2 November 2026 in a fresh, isolated desktop Chrome 156 headless profile on localhost. The test server applied the production Content-Security-Policy, with frame-ancestors changed to self only to permit the same-origin fixture frames. A direct page render also used the unmodified policy. No uncaught browser errors were reported by the completed fixtures.
 

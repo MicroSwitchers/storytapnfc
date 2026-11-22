@@ -13,11 +13,11 @@ test('old picture-free backups remain valid and optional picture data is retaine
 test('backup pictures reject active SVG content, invalid base64 and oversized data', () => {
   for (const image of [{ mime: 'image/svg+xml', data: 'YQ==' }, { mime: 'image/png', data: '$$$$' }, { mime: 'image/png', data: '' }, { mime: 'image/png', data: 'A'.repeat(Math.ceil(C.MAX_IMAGE / 3) * 4 + 4) }]) assert.throws(() => C.validateBackup(backup(image)), /picture/);
 });
-test('child markup contains only tag-selected content, Stop and the parent handle', () => {
+test('child markup contains tag-selected content, playback buttons and the parent handle', () => {
   const html = require('node:fs').readFileSync(require('node:path').join(__dirname, '../index.html'), 'utf8');
   const child = html.slice(html.indexOf('<section id="child-view"'), html.indexOf('</section>', html.indexOf('<section id="child-view"')));
   assert.doesNotMatch(child, /data-play|<select|<form|child-stories|child-code/);
-  assert.match(child, /child-now-playing/); assert.match(child, /child-stop-audio/); assert.match(child, /child-exit/);
+  assert.match(child, /child-now-playing/); assert.match(child, /child-stop-audio/); assert.match(child, /child-pause-audio/); assert.match(child, /child-exit/);
   assert.match(html, /id="exit-hold-seconds"[\s\S]*?value="2"[\s\S]*?value="5"/);
   assert.match(html, /id="exit-tap-count"[\s\S]*?value="3"[\s\S]*?value="5"/);
 });

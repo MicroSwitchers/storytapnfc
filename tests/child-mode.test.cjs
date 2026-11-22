@@ -19,10 +19,11 @@ function fixture() {
 test('legacy preferences gain child defaults and invalid settings are normalized', () => {
   const { root } = fixture(), defaults = root.StoryChild.preferences({ spoken: true });
   assert.equal(Object.hasOwn(defaults, 'spoken'), false); assert.equal(defaults.childScreen, 'black'); assert.equal(defaults.childLock, true);
-  assert.equal(defaults.touchToPause, true); assert.equal(defaults.keepAwake, true); assert.equal(defaults.tapToPause, false);
-  const saved = root.StoryChild.preferences({ childScreen: 'black', childLock: false, keepAwake: false, tapToPause: true, playbackRate: 99 });
+  assert.equal(defaults.touchAction, 'none'); assert.equal(defaults.keepAwake, true); assert.equal(defaults.tapToPause, false); assert.equal(defaults.tapToStop, false); assert.equal(defaults.haptics, true);
+  assert.equal(defaults.showStop, true); assert.equal(defaults.showPause, false);
+  const saved = root.StoryChild.preferences({ childScreen: 'black', childLock: false, keepAwake: false, tapToPause: true, haptics: false, playbackRate: 99 });
   assert.equal(saved.childScreen, 'black'); assert.equal(saved.childLock, true); assert.equal(saved.keepAwake, false);
-  assert.equal(saved.tapToPause, true); assert.equal(saved.playbackRate, 1);
+  assert.equal(saved.tapToPause, true); assert.equal(saved.tapToStop, false); assert.equal(saved.haptics, false); assert.equal(saved.playbackRate, 1);
 });
 test('a click cannot exit a locked mode and a continuous pointer hold exits after three seconds', () => {
   const f = fixture(); let exits = 0;
@@ -87,10 +88,14 @@ test('unsupported or denied wake lock remains a recoverable status', async () =>
   await keeper.setEnabled(true); assert.equal(states.at(-1), 'unavailable');
 });
 
-test('screen-touch pause defaults on, can be disabled, and old unlocked exits become hold-only', () => {
-  const f = fixture(); assert.equal(f.root.StoryChild.preferences().touchToPause, true);
-  const saved = f.root.StoryChild.preferences({ touchToPause: false, childLock: false });
-  assert.equal(saved.touchToPause, false); assert.equal(saved.childLock, true);
+test('stored touch opt-outs and button choices carry forward and the new selector takes precedence', () => {
+  const preferences = fixture().root.StoryChild.preferences;
+  const saved = preferences({ touchToPause: false, childLock: false, showStop: false, showPause: true });
+  assert.equal(saved.touchAction, 'none'); assert.equal(saved.childLock, true);
+  assert.equal(saved.showStop, false); assert.equal(saved.showPause, true);
+  assert.equal(preferences({ touchToPause: true, touchAction: 'stop' }).touchAction, 'stop');
+  assert.equal(preferences({ touchAction: 'invalid' }).touchAction, 'none');
+  assert.equal(preferences({ touchToPause: true }).touchAction, 'pause');
 });
 test('immersive mode requests hidden navigation UI and releases only its own full-screen session', async () => {
   const f = fixture(); let requestOptions, exits = 0;
@@ -118,24 +123,27 @@ test('unsupported, denied and non-gesture fullscreen requests are safe fallbacks
   await immersive.setEnabled(true); assert.equal(requests, 0);
 });
 function touchFixture() {
-  const f = fixture(); let playing = true, enabled = true, pauses = 0;
-  new f.root.StoryChild.TouchPause({ enabled: () => enabled, playing: () => playing, pause() { pauses++; playing = false; } });
+  const f = fixture(); let playing = true, action = 'pause', pauses = 0, stops = 0;
+  new f.root.StoryChild.ScreenTouch({ action: () => action, playing: () => playing,
+    pause() { pauses++; playing = false; }, stop() { stops++; playing = false; } });
   function event(type, { special = false, detail = 1 } = {}) {
     const e = { button: 0, detail, target: { closest() { return special ? {} : null; } }, prevented: false, stopped: false,
       preventDefault() { this.prevented = true; }, stopImmediatePropagation() { this.stopped = true; } };
     f.documentEvents.get(type)(e); return e;
   }
-  return { f, event, play() { playing = true; }, disable() { enabled = false; }, pauses: () => pauses };
+  return { f, event, play() { playing = true; }, setAction(value) { action = value; }, pauses: () => pauses, stops: () => stops };
 }
 test('touching a playing story pauses once and consumes that gesture instead of restarting media', () => {
   const t = touchFixture(); assert.equal(t.event('pointerdown').prevented, true); assert.equal(t.pauses(), 1);
   assert.equal(t.event('click').stopped, true);
   t.event('pointerdown'); assert.equal(t.event('click').stopped, false, 'next touch may use Play');
 });
-test('screen touches preserve exit holds and drawer use while still pausing playback', () => {
+test('screen touch actions leave explicit controls available and respect the no-action setting', () => {
   const t = touchFixture(); assert.equal(t.event('pointerdown', { special: true }).prevented, false);
-  assert.equal(t.event('click').stopped, false); assert.equal(t.pauses(), 1);
-  t.play(); t.disable(); assert.equal(t.event('pointerdown').prevented, false); assert.equal(t.pauses(), 1);
+  assert.equal(t.event('click').stopped, false); assert.equal(t.pauses(), 0);
+  t.setAction('none'); assert.equal(t.event('pointerdown').prevented, false); assert.equal(t.pauses(), 0);
+  t.setAction('stop'); assert.equal(t.event('pointerdown', { special: true }).prevented, false); assert.equal(t.stops(), 0);
+  assert.equal(t.event('pointerdown').prevented, true); assert.equal(t.stops(), 1); assert.equal(t.event('click').stopped, true);
 });
 test('keyboard activation and a cancelled pointer do not inherit a stale paused-touch click block', () => {
   const t = touchFixture(); t.event('pointerdown'); assert.equal(t.event('click', { detail: 0 }).stopped, false);

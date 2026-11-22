@@ -48,6 +48,8 @@
       ids.add(s.id);
       if (s.image !== undefined && (!s.image || !IMAGE_MIMES.includes(s.image.mime) || typeof s.image.data !== 'string' || !s.image.data || s.image.data.length > Math.ceil(MAX_IMAGE / 3) * 4 || s.image.data.length % 4 || !/^[A-Za-z0-9+/]*={0,2}$/.test(s.image.data))) throw new Error('The backup has an invalid story picture.');
       if (typeof s.title !== 'string' || !s.title.trim() || s.title.length > 100 || !Object.hasOwn(SYMBOLS, s.symbol) || typeof s.transcript !== 'string' || s.transcript.length > 20000) throw new Error('The backup contains invalid story details.');
+      if (s.origin !== undefined && !['recorded','uploaded','written'].includes(s.origin)) throw new Error('The backup has an invalid story source.');
+      if (s.sourceName !== undefined && (typeof s.sourceName !== 'string' || s.sourceName.length > 255)) throw new Error('The backup has an invalid source filename.');
       if (data.version === 2 && !['audio','text'].includes(s.kind)) throw new Error('The backup has an invalid story type.');
       if (s.kind === 'text') {
         if (typeof s.text !== 'string' || !s.text.trim() || s.text.length > 20000 || typeof s.voiceURI !== 'string' || s.voiceURI.length > 500 || typeof s.voiceLang !== 'string' || s.voiceLang.length > 50 || !Number.isFinite(s.rate) || s.rate < .5 || s.rate > 2) throw new Error('The backup contains invalid written story details.');
